@@ -1,0 +1,218 @@
+# Tuya Integration - HTTP Examples
+# Archivo para testing manual con REST Client (VS Code) o similar
+
+### Variables
+@baseUrl = http://localhost:3000/api/integrations/tuya
+@deviceId = YOUR_DEVICE_ID_HERE
+
+###############################################################################
+# 1. Test de Conectividad
+###############################################################################
+
+### Test - Verificar que la integración funciona
+GET {{baseUrl}}/test
+Accept: application/json
+
+###############################################################################
+# 2. Listar Dispositivos
+###############################################################################
+
+### Listar todos los dispositivos
+GET {{baseUrl}}/devices
+Accept: application/json
+
+### Listar dispositivos de un usuario específico
+GET {{baseUrl}}/devices?user_id=USER_ID
+Accept: application/json
+
+###############################################################################
+# 3. Estado de Dispositivo
+###############################################################################
+
+### Obtener estado de un dispositivo
+GET {{baseUrl}}/devices/{{deviceId}}
+Accept: application/json
+
+### Obtener especificaciones de un dispositivo
+GET {{baseUrl}}/devices/{{deviceId}}/specifications
+Accept: application/json
+
+### Obtener logs de un dispositivo
+GET {{baseUrl}}/devices/{{deviceId}}/logs
+Accept: application/json
+
+### Obtener logs con rango de tiempo
+GET {{baseUrl}}/devices/{{deviceId}}/logs?start_time=1706000000&end_time=1706500000
+Accept: application/json
+
+###############################################################################
+# 4. Control de Dispositivos
+###############################################################################
+
+### Ejemplo 1: Encender un switch/luz
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch",
+      "value": true
+    }
+  ]
+}
+
+### Ejemplo 2: Apagar un switch/luz
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch",
+      "value": false
+    }
+  ]
+}
+
+### Ejemplo 3: Ajustar brillo de una luz (0-255)
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch_led",
+      "value": true
+    },
+    {
+      "code": "bright_value",
+      "value": 200
+    }
+  ]
+}
+
+### Ejemplo 4: Cambiar color de luz RGB
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch_led",
+      "value": true
+    },
+    {
+      "code": "colour_data",
+      "value": {
+        "h": 120,
+        "s": 100,
+        "v": 100
+      }
+    }
+  ]
+}
+
+### Ejemplo 5: Ajustar temperatura de color (Kelvin)
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch_led",
+      "value": true
+    },
+    {
+      "code": "temp_value",
+      "value": 4500
+    }
+  ]
+}
+
+### Ejemplo 6: Control de termostato
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "temp_set",
+      "value": 22.5
+    },
+    {
+      "code": "mode",
+      "value": "cold"
+    }
+  ]
+}
+
+### Ejemplo 7: Multi-switch (encender switch 1)
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "switch_1",
+      "value": true
+    }
+  ]
+}
+
+### Ejemplo 8: Control de cortina
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "control",
+      "value": "open"
+    }
+  ]
+}
+
+### Ejemplo 9: Cortina a porcentaje específico
+POST {{baseUrl}}/devices/{{deviceId}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "code": "percent_control",
+      "value": 50
+    }
+  ]
+}
+
+###############################################################################
+# 5. Sincronización
+###############################################################################
+
+### Sincronizar/refrescar lista de dispositivos
+POST {{baseUrl}}/sync
+Content-Type: application/json
+
+###############################################################################
+# Comandos curl equivalentes
+###############################################################################
+
+# Test
+# curl http://localhost:3000/api/integrations/tuya/test
+
+# Listar dispositivos
+# curl http://localhost:3000/api/integrations/tuya/devices | jq
+
+# Estado de dispositivo
+# curl http://localhost:3000/api/integrations/tuya/devices/YOUR_DEVICE_ID | jq
+
+# Encender luz
+# curl -X POST http://localhost:3000/api/integrations/tuya/devices/YOUR_DEVICE_ID/commands \
+#   -H "Content-Type: application/json" \
+#   -d '{"commands": [{"code": "switch", "value": true}]}'
+
+# Apagar luz
+# curl -X POST http://localhost:3000/api/integrations/tuya/devices/YOUR_DEVICE_ID/commands \
+#   -H "Content-Type: application/json" \
+#   -d '{"commands": [{"code": "switch", "value": false}]}'

@@ -1,0 +1,204 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== MULTI-TENANT MODELS =====
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships    Membership[]
+  labs           Lab[]
+  batches        Batch[]
+  operations     Operation[]
+  sensors        Sensor[]
+  tuyaAppAccounts TuyaAppAccount[]
+  tuyaDevices    TuyaDevice[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  operations  Operation[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role      String   @default("STAFF") // OWNER, ADMIN, STAFF
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@index([userId])
+}
+
+// ===== TUYA INTEGRATION MODELS =====
+
+model TuyaAppAccount {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uid       String
+  baseUrl   String
+  region    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, uid])
+  @@index([tenantId])
+}
+
+model TuyaDevice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tuyaDeviceId  String    @unique
+  name          String?
+  category      String?
+  isOnline      Boolean?  @default(false)
+  raw           String    // JSON stored as string
+  labId         String?
+  lab           Lab?      @relation(fields: [labId], references: [id], onDelete: SetNull)
+  lastSyncAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([tuyaDeviceId])
+  @@index([labId])
+}
+
+// ===== EXISTING MODELS (updated with tenantId) =====
+
+// ===== EXISTING MODELS (updated with tenantId) =====
+
+model Lab {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  area      Float
+  cycle     String
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  batches     Batch[]
+  sensors     Sensor[]
+  operations  Operation[]
+  tuyaDevices TuyaDevice[]
+
+  @@index([tenantId])
+}
+
+model Genetics {
+  id      String   @id @default(cuid())
+  name    String
+  breeder String
+  origin  String
+  type    String
+  thcMin  Float
+  thcMax  Float
+  cbdMin  Float
+  cbdMax  Float
+  terpenes String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  batches Batch[]
+}
+
+model Batch {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  labId       String
+  lab         Lab       @relation(fields: [labId], references: [id], onDelete: Cascade)
+  geneticsId  String
+  genetics    Genetics  @relation(fields: [geneticsId], references: [id])
+  state       String    @default("VEGETATIVE")
+  plantCount  Int
+  sowingDate  DateTime
+  harvestDate DateTime?
+  phenotype   String?
+  notes       String?
+  events      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  operations    Operation[]
+  measurements  Measurement[]
+
+  @@index([tenantId])
+  @@index([labId])
+}
+
+model Operation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  labId     String?
+  lab       Lab?     @relation(fields: [labId], references: [id])
+  type      String
+  data      String
+  notes     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([batchId])
+  @@index([userId])
+}
+
+model Measurement {
+  id        String   @id @default(cuid())
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type      String
+  value     Float
+  unit      String
+  source    String   @default("manual")
+  createdAt DateTime @default(now())
+}
+
+model Sensor {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  labId     String
+  lab       Lab       @relation(fields: [labId], references: [id], onDelete: Cascade)
+  name      String
+  type      String
+  status    String    @default("online")
+  lastRead  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([labId])
+}

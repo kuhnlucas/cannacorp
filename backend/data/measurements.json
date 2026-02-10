@@ -1,0 +1,38 @@
+[
+  {
+    "id": "i19no4uj8",
+    "batchId": "u4nc4r6sm",
+    "type": "temperature",
+    "value": 28.5,
+    "unit": "C",
+    "source": "iot",
+    "createdAt": "2026-01-28T04:51:39.750Z"
+  },
+  {
+    "id": "yttuoml6x",
+    "batchId": "u4nc4r6sm",
+    "type": "humidity",
+    "value": 72,
+    "unit": "%",
+    "source": "iot",
+    "createdAt": "2026-01-28T04:51:39.760Z"
+  },
+  {
+    "id": "6u8ckvjip",
+    "batchId": "u4nc4r6sm",
+    "type": "ph",
+    "value": 6.1,
+    "unit": "",
+    "source": "iot",
+    "createdAt": "2026-01-28T04:51:39.769Z"
+  },
+  {
+    "id": "tgtousdb2",
+    "batchId": "u4nc4r6sm",
+    "type": "ec",
+    "value": 1.7,
+    "unit": "mS/cm",
+    "source": "iot",
+    "createdAt": "2026-01-28T04:51:39.781Z"
+  }
+]
