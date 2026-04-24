@@ -58,6 +58,12 @@ interface DataContextType {
   batches: Batch[];
   measurements: Measurement[];
   isLoading: boolean;
+  error: boolean;
+  errors: {
+    batches: boolean;
+    genetics: boolean;
+    measurements: boolean;
+  };
   addLab: (lab: Omit<Lab, 'id'>) => Promise<void>;
   updateLab: (id: string, data: Partial<Lab>) => Promise<void>;
   addGenetics: (genetics: Omit<Genetics, 'id'>) => Promise<void>;
@@ -75,6 +81,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [errors, setErrors] = useState({ batches: false, genetics: false, measurements: false });
 
   const currentTenantId = () => selectedTenant?.id || localStorage.getItem('selectedTenantId');
 
@@ -90,6 +98,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setGenetics([]);
       setBatches([]);
       setMeasurements([]);
+      setError(false);
+      setErrors({ batches: false, genetics: false, measurements: false });
       setIsLoading(false);
     }
   }, [selectedTenant]);
@@ -97,39 +107,51 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const refreshData = async () => {
     try {
       setIsLoading(true);
-      
+      setError(false);
+      setErrors({ batches: false, genetics: false, measurements: false });
+
       console.log('📡 DataContext: Iniciando carga de datos...');
-      
-      // Fetch all data in parallel
-      const [labsData, geneticsData, batchesData, measurementsData] = await Promise.all([
-        api.labs.getAll().catch((err) => { 
-          console.error('❌ Error cargando labs:', err); 
-          return { labs: [] }; 
-        }),
-        api.genetics.getAll().catch((err) => { 
-          console.error('❌ Error cargando genetics:', err); 
-          return []; 
-        }),
-        api.batches.getAll().catch((err) => { 
-          console.error('❌ Error cargando batches:', err); 
-          return []; 
-        }),
-        api.monitoring.getMeasurements().catch((err) => { 
-          console.error('❌ Error cargando measurements:', err); 
-          return []; 
-        })
+
+      const [labsResult, geneticsResult, batchesResult, measurementsResult] = await Promise.allSettled([
+        api.labs.getAll(),
+        api.genetics.getAll(),
+        api.batches.getAll(),
+        api.monitoring.getMeasurements(),
       ]);
 
+      const newErrors = { batches: false, genetics: false, measurements: false };
+
+      if (labsResult.status === 'rejected') {
+        console.error('❌ Error cargando labs:', labsResult.reason);
+      }
+      if (geneticsResult.status === 'rejected') {
+        console.error('❌ Error cargando genetics:', geneticsResult.reason);
+        newErrors.genetics = true;
+      }
+      if (batchesResult.status === 'rejected') {
+        console.error('❌ Error cargando batches:', batchesResult.reason);
+        newErrors.batches = true;
+      }
+      if (measurementsResult.status === 'rejected') {
+        console.error('❌ Error cargando measurements:', measurementsResult.reason);
+        newErrors.measurements = true;
+      }
+
+      setErrors(newErrors);
+      setError(newErrors.batches || newErrors.genetics || newErrors.measurements);
+
+      const labsData = labsResult.status === 'fulfilled' ? labsResult.value : null;
       const labs = labsData?.labs || labsData || [];
-      console.log('✅ DataContext: Labs cargados:', labs.length);
-      
-      setLabs(labs);
-      setGenetics(geneticsData || []);
-      setBatches(batchesData || []);
-      setMeasurements(measurementsData || []);
+      console.log('✅ DataContext: Labs cargados:', Array.isArray(labs) ? labs.length : 0);
+
+      setLabs(Array.isArray(labs) ? labs : []);
+      setGenetics(geneticsResult.status === 'fulfilled' ? (geneticsResult.value || []) : []);
+      setBatches(batchesResult.status === 'fulfilled' ? (batchesResult.value || []) : []);
+      setMeasurements(measurementsResult.status === 'fulfilled' ? (measurementsResult.value || []) : []);
       setIsLoading(false);
-    } catch (error) {
-      console.error('❌ DataContext: Error loading data:', error);
+    } catch (err) {
+      console.error('❌ DataContext: Error inesperado:', err);
+      setError(true);
       setIsLoading(false);
     }
   };
@@ -223,6 +245,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       batches,
       measurements,
       isLoading,
+      error,
+      errors,
       addLab,
       updateLab,
       addGenetics,

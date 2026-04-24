@@ -30,25 +30,28 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
     // Leer header X-Tenant-Id
     const tenantId = req.headers['x-tenant-id'] as string | undefined;
 
-    console.log('🔍 requireTenant:', { userId, tenantId, hasHeader: !!tenantId });
+    let membership;
 
-    // Estrategia: si no viene header o no corresponde, elegir el primer tenant del usuario
-    let membership = tenantId
-      ? await prisma.membership.findUnique({
-          where: {
-            userId_tenantId: {
-              userId,
-              tenantId,
-            },
+    if (tenantId) {
+      // Header presente: debe pertenecer al usuario, sin fallback silencioso
+      membership = await prisma.membership.findUnique({
+        where: {
+          userId_tenantId: {
+            userId,
+            tenantId,
           },
-          include: {
-            tenant: { select: { id: true, name: true } },
-          },
-        })
-      : null;
+        },
+        include: {
+          tenant: { select: { id: true, name: true } },
+        },
+      });
 
-    if (!membership) {
-      console.warn('⚠️ requireTenant: usando fallback al primer tenant del usuario');
+      if (!membership) {
+        console.error('❌ requireTenant: tenant no pertenece al usuario', { userId, tenantId });
+        return res.status(403).json({ error: 'Access to this tenant is not allowed' });
+      }
+    } else {
+      // Sin header: fallback al primer tenant del usuario
       membership = await prisma.membership.findFirst({
         where: { userId },
         orderBy: { createdAt: 'asc' },
@@ -56,11 +59,11 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
           tenant: { select: { id: true, name: true } },
         },
       });
-    }
 
-    if (!membership) {
-      console.error('❌ requireTenant: usuario sin memberships', { userId, tenantId });
-      return res.status(403).json({ error: 'User has no tenant membership' });
+      if (!membership) {
+        console.error('❌ requireTenant: usuario sin memberships', { userId });
+        return res.status(403).json({ error: 'User has no tenant membership' });
+      }
     }
 
     req.tenant = {
@@ -72,7 +75,6 @@ export const requireTenant = async (req: Request, res: Response, next: NextFunct
     // Reescribir header para downstream con el tenant efectivo
     (req as any).headers['x-tenant-id'] = membership.tenant.id;
 
-    console.log('✅ requireTenant: Membership verificada y tenant adjuntado');
     next();
   } catch (error) {
     console.error('Tenant middleware error:', error);

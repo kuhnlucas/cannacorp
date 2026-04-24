@@ -25,8 +25,9 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
     (req as any).userId = decoded.id; // compatibilidad con middleware antiguo
     next();
   } catch (err) {
-    console.error('❌ requireAuth: token inválido', err instanceof Error ? err.message : err);
-    return res.status(403).json({ error: 'Invalid token' });
+    const message = err instanceof Error ? err.message : 'unknown';
+    console.error('❌ requireAuth: token inválido -', message);
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 

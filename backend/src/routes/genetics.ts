@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/', authenticateToken, geneticsController.getGenetics_handler);
 router.post('/', authenticateToken, geneticsController.createGenetics);
-router.get('/:id', authenticateToken, authenticateToken, geneticsController.getGeneticsById);
+router.get('/:id', authenticateToken, geneticsController.getGeneticsById);
 router.patch('/:id', authenticateToken, geneticsController.updateGenetics);
 router.delete('/:id', authenticateToken, geneticsController.deleteGenetics);
 

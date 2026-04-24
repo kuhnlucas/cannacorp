@@ -3,6 +3,17 @@
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// Callback registrado por AuthContext para ejecutar logout ante 401.
+let _onAuthError: (() => void) | null = null;
+// Flag que evita múltiples logout ante requests 401 simultáneas.
+// Se resetea automáticamente cada vez que se registra un nuevo handler (login).
+let _isHandlingAuthError = false;
+
+export const setAuthErrorHandler = (handler: () => void): void => {
+  _onAuthError = handler;
+  _isHandlingAuthError = false; // siempre resetear al registrar (login o mount)
+};
+
 // Helper function to get token from localStorage
 const getToken = (): string | null => {
   return localStorage.getItem('token');
@@ -17,39 +28,32 @@ const getTenantId = (): string | null => {
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const token = getToken();
   const tenantId = getTenantId();
-  
-  console.log('🔐 fetchWithAuth:', { 
-    url, 
-    hasToken: !!token, 
-    hasTenantId: !!tenantId,
-    token: token ? `${token.substring(0, 20)}...` : 'NO TOKEN',
-    tenantId 
-  });
-  
-  const headers = {
+
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   if (token) {
-    (headers as any)['Authorization'] = `Bearer ${token}`;
-  } else {
-    console.error('❌ No hay token en localStorage. Usuario no autenticado.');
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   if (tenantId) {
-    (headers as any)['X-Tenant-Id'] = tenantId;
-  } else {
-    console.warn('⚠️ No hay tenantId en localStorage.');
+    headers['X-Tenant-Id'] = tenantId;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    if (_onAuthError && !_isHandlingAuthError) {
+      console.warn('⚠️ fetchWithAuth: sesión expirada, ejecutando logout');
+      _isHandlingAuthError = true;
+      _onAuthError();
+    }
+    throw new Error('AUTH_ERROR');
+  }
 
   if (!response.ok) {
-    console.error('❌ Error en la respuesta:', { status: response.status, url });
     throw new Error(`API Error: ${response.status}`);
   }
 
