@@ -11,5 +11,18 @@
     "cbdMax": 0,
     "terpenes": "",
     "createdAt": "2026-01-31T17:40:47.408Z"
+  },
+  {
+    "id": "q5jl8o3hm",
+    "name": "Lemon Haze",
+    "breeder": "Dutch ",
+    "origin": "",
+    "type": "hybrid",
+    "thcMin": 30,
+    "thcMax": 40,
+    "cbdMin": 20,
+    "cbdMax": 25,
+    "terpenes": "",
+    "createdAt": "2026-04-12T19:40:32.571Z"
   }
 ]

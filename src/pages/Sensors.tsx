@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import Badge from '../components/Badge';
 import TuyaLinkWizard from '../components/TuyaLinkWizard';
 import { useTenant } from '../contexts/TenantContext';
+import api from '../services/api';
 
 interface PulseGrowDevice {
   id: string;
@@ -58,8 +59,7 @@ export default function Sensors() {
 
   const fetchPulseGrowData = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/sensors/pulsegrow/devices');
-      const data = await response.json();
+      const data = await api.pulseGrow.getAllDevices();
       setPulseGrowDevices(data.deviceViewDtos || []);
     } catch (error) {
       console.error('Error fetching Pulse Grow data:', error);
@@ -77,14 +77,7 @@ export default function Sensors() {
 
     setLoadingTuya(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/tuya/devices', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Id': selectedTenant.id,
-        },
-      });
-      const data = await response.json();
+      const data = await api.tuya.getDevices();
       console.log('📊 Tuya devices received:', data.devices);
       if (data.devices && data.devices.length > 0) {
         console.log('📊 First device:', data.devices[0]);
@@ -105,15 +98,7 @@ export default function Sensors() {
     
     setLoadingTuya(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/tuya/sync', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Id': selectedTenant.id,
-        },
-      });
-      const data = await response.json();
+      const data = await api.tuya.syncDevices();
       console.log('✅ Sync response:', data);
       // Reload devices after sync
       await fetchTuyaData();

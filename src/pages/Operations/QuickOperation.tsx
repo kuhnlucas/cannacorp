@@ -3,24 +3,28 @@
  * UI minimalista para registrar eventos de cultivo rápidamente
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, X } from 'lucide-react';
 import Card from '../../components/Card';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { quickEventTypes, EventType, mockOperationEvents } from '../../mocks/ops';
+import { useData } from '../../contexts/DataContext';
+import { quickEventTypes, EventType } from '../../mocks/ops';
+import api from '../../services/api';
 
 export default function QuickOperationsPage() {
   const { t } = useLanguage();
+  const { labs, batches } = useData();
   const [selectedEventType, setSelectedEventType] = useState<EventType | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
-    lab: 'Lab A',
-    room: 'Sala 1',
-    batch: '',
+    labId: '',
+    room: '',
+    batchId: '',
     volume: '',
     ph: '',
     ec: '',
@@ -29,11 +33,10 @@ export default function QuickOperationsPage() {
 
   const handleEventTypeSelect = (type: EventType) => {
     setSelectedEventType(type);
-    // Reset form
     setFormData({
-      lab: 'Lab A',
-      room: 'Sala 1',
-      batch: '',
+      labId: labs[0]?.id || '',
+      room: '',
+      batchId: '',
       volume: '',
       ph: '',
       ec: '',
@@ -47,27 +50,34 @@ export default function QuickOperationsPage() {
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock: Add event to list
-    const newEvent = {
-      id: String(mockOperationEvents.length + 1),
-      lab: formData.lab,
-      room: formData.room,
-      batch: formData.batch || undefined,
-      type: selectedEventType!,
-      timestamp: new Date(),
-      data: {
-        volume: formData.volume,
-        ph: formData.ph,
-        ec: formData.ec,
-      },
-      notes: formData.notes,
-    };
+    if (!selectedEventType || submitting) return;
+    setSubmitting(true);
+    try {
+      const data: Record<string, any> = {};
+      if (formData.volume) data.volume = formData.volume;
+      if (formData.ph) data.ph = formData.ph;
+      if (formData.ec) data.ec = formData.ec;
+      if (formData.room) data.room = formData.room;
 
-    mockOperationEvents.push(newEvent);
-    showSuccessToast(`✅ Evento registrado en ${formData.room}`);
-    setSelectedEventType(null);
+      await api.operations.create({
+        type: selectedEventType,
+        batchId: formData.batchId || undefined,
+        labId: formData.labId || undefined,
+        data,
+        notes: formData.notes || undefined,
+      });
+
+      const labName = labs.find(l => l.id === formData.labId)?.name || '';
+      showSuccessToast(`✅ Evento registrado en ${labName}`);
+      setSelectedEventType(null);
+    } catch (err) {
+      console.error('Error creating operation:', err);
+      showSuccessToast('❌ Error al registrar evento');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const breadcrumbs = [
@@ -103,39 +113,42 @@ export default function QuickOperationsPage() {
                     Laboratorio
                   </label>
                   <select
-                    value={formData.lab}
-                    onChange={(e) => setFormData({ ...formData, lab: e.target.value })}
+                    value={formData.labId}
+                    onChange={(e) => setFormData({ ...formData, labId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                   >
-                    <option>Lab A</option>
-                    <option>Lab B</option>
+                    <option value="">Seleccionar...</option>
+                    {labs.map(lab => (
+                      <option key={lab.id} value={lab.id}>{lab.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Sala
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="Sala 1"
                     value={formData.room}
                     onChange={(e) => setFormData({ ...formData, room: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  >
-                    <option>Sala 1</option>
-                    <option>Sala 2</option>
-                    <option>Sala 3</option>
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Lote (opcional)
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Batch #001"
-                    value={formData.batch}
-                    onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                  <select
+                    value={formData.batchId}
+                    onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  />
+                  >
+                    <option value="">Sin lote</option>
+                    {batches.map(b => (
+                      <option key={b.id} value={b.id}>{b.code}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

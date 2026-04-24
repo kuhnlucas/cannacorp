@@ -1,0 +1,96 @@
+# ===========================================================
+# docker-compose.yml — CannaCorp — Desarrollo Local
+# ===========================================================
+# Levanta: web (Vite dev server) + api (ts-node con watch) + SQLite
+#
+# Uso:
+#   docker compose up              → levanta todo
+#   docker compose up api          → solo backend
+#   docker compose up web          → solo frontend (necesita api corriendo)
+#   docker compose down            → para todo
+#   docker compose down -v         → para todo y borra volúmenes
+#
+# Primera vez:
+#   1. cp .env.example .env        → completar variables
+#   2. docker compose up
+#      (las migraciones corren automáticamente)
+#
+# ===========================================================
+
+services:
+  # -------------------------------------------------------
+  # API — Express + Prisma + SQLite
+  # -------------------------------------------------------
+  api:
+    image: node:20-alpine
+    working_dir: /app
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        npm install &&
+        npx prisma generate &&
+        npx prisma migrate dev --name auto 2>/dev/null || npx prisma migrate deploy &&
+        node --watch -r ts-node/register src/index.ts
+      "
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      # Montar código del backend (hot reload + DB persiste en host)
+      - ./backend:/app
+      # Volumen anónimo para node_modules (evita pisar los del host)
+      - api_node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=${JWT_SECRET:?Definir JWT_SECRET en .env}
+      - TUYA_CLIENT_ID=${TUYA_CLIENT_ID:-}
+      - TUYA_CLIENT_SECRET=${TUYA_CLIENT_SECRET:-}
+      - TUYA_REGION=${TUYA_REGION:-us}
+      - TUYA_BASE_URL=${TUYA_BASE_URL:-}
+      - PULSE_GROW_API_URL=${PULSE_GROW_API_URL:-}
+      - PULSE_GROW_API_KEY=${PULSE_GROW_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # -------------------------------------------------------
+  # WEB — Vite dev server (NO nginx en dev)
+  # -------------------------------------------------------
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: >
+      sh -c "
+        npm install &&
+        npx vite --host 0.0.0.0 --port 5173
+      "
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      # Montar código del frontend (root del repo, excluyendo backend)
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.app.json:/app/tsconfig.app.json
+      - ./tsconfig.node.json:/app/tsconfig.node.json
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./eslint.config.js:/app/eslint.config.js
+      - ./index.html:/app/index.html
+      - ./src:/app/src
+      # Volumen anónimo para node_modules
+      - web_node_modules:/app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:${API_PORT:-3000}/api
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api_node_modules:
+  web_node_modules:

@@ -1,87 +1,89 @@
 import { Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware';
 
-const dbPath = path.join(process.cwd(), 'data');
-const measurementsFile = path.join(dbPath, 'measurements.json');
-const sensorsFile = path.join(dbPath, 'sensors.json');
+const prisma = new PrismaClient();
 
-const ensureDbDir = () => {
-  if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
-};
-
-const getMeasurements = () => {
-  ensureDbDir();
-  if (!fs.existsSync(measurementsFile)) return [];
-  return JSON.parse(fs.readFileSync(measurementsFile, 'utf-8'));
-};
-
-const saveMeasurements = (measurements: any) => {
-  ensureDbDir();
-  fs.writeFileSync(measurementsFile, JSON.stringify(measurements, null, 2));
-};
-
-const getSensors = () => {
-  ensureDbDir();
-  if (!fs.existsSync(sensorsFile)) return [];
-  return JSON.parse(fs.readFileSync(sensorsFile, 'utf-8'));
-};
-
-const saveSensors = (sensors: any) => {
-  ensureDbDir();
-  fs.writeFileSync(sensorsFile, JSON.stringify(sensors, null, 2));
-};
-
-export const getMeasurements_handler = (req: Request, res: Response) => {
+export const getMeasurements_handler = async (req: Request, res: Response) => {
   try {
+    const tenantId = (req as any).tenant?.id;
     const { batchId } = req.query;
-    let measurements = getMeasurements();
-    if (batchId) measurements = measurements.filter((m: any) => m.batchId === batchId);
+
+    const where: any = {};
+    if (batchId) {
+      where.batchId = batchId as string;
+    } else if (tenantId) {
+      // Filter measurements through batch → tenant
+      where.batch = { tenantId };
+    }
+
+    const measurements = await prisma.measurement.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
     res.json(measurements);
   } catch (err) {
+    console.error('Error fetching measurements:', err);
     res.status(500).json({ error: 'Failed to get measurements' });
   }
 };
 
-export const createMeasurement = (req: AuthRequest, res: Response) => {
+export const createMeasurement = async (req: AuthRequest, res: Response) => {
   try {
     const { batchId, type, value, unit, source } = req.body;
-    const measurements = getMeasurements();
-    const measurement = {
-      id: Math.random().toString(36).substr(2, 9),
-      batchId,
-      type,
-      value,
-      unit,
-      source: source || 'manual',
-      createdAt: new Date().toISOString()
-    };
-    measurements.push(measurement);
-    saveMeasurements(measurements);
+
+    if (!batchId || !type || value === undefined) {
+      return res.status(400).json({ error: 'batchId, type, and value are required' });
+    }
+
+    const measurement = await prisma.measurement.create({
+      data: {
+        batchId,
+        type,
+        value: parseFloat(value),
+        unit: unit || '',
+        source: source || 'manual',
+      },
+    });
     res.json(measurement);
   } catch (err) {
+    console.error('Error creating measurement:', err);
     res.status(500).json({ error: 'Failed to create measurement' });
   }
 };
 
-export const getSensorData = (req: Request, res: Response) => {
+export const getSensorData = async (req: Request, res: Response) => {
   try {
     const { labId } = req.params;
-    const sensors = getSensors().filter((s: any) => s.labId === labId);
+    const tenantId = (req as any).tenant?.id;
+    const where: any = { labId };
+    if (tenantId) where.tenantId = tenantId;
+
+    const sensors = await prisma.sensor.findMany({ where });
     res.json(sensors);
   } catch (err) {
+    console.error('Error fetching sensors:', err);
     res.status(500).json({ error: 'Failed to get sensors' });
   }
 };
 
-export const getLabRealtimeData = (req: Request, res: Response) => {
+export const getLabRealtimeData = async (req: Request, res: Response) => {
   try {
     const { labId } = req.params;
-    const sensors = getSensors().filter((s: any) => s.labId === labId);
-    const measurements = getMeasurements().slice(-100);
+    const tenantId = (req as any).tenant?.id;
+    const sensorWhere: any = { labId };
+    if (tenantId) sensorWhere.tenantId = tenantId;
+
+    const sensors = await prisma.sensor.findMany({ where: sensorWhere });
+    const measurements = await prisma.measurement.findMany({
+      where: { batch: { labId } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
     res.json({ sensors, measurements });
   } catch (err) {
+    console.error('Error fetching realtime data:', err);
     res.status(500).json({ error: 'Failed to get realtime data' });
   }
 };

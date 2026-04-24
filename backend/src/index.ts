@@ -12,6 +12,8 @@ import geneticsRoutes from './routes/genetics';
 import batchesRoutes from './routes/batches';
 import operationsRoutes from './routes/operations';
 import monitoringRoutes from './routes/monitoring';
+import dashboardRoutes from './routes/dashboard';
+import sensorsRoutes from './routes/sensors';
 import pulseGrowRoutes from './routes/pulseGrow';
 import tuyaRoutes from './routes/tuya';
 import tuyaMultiTenantRoutes from './routes/tuyaMultiTenant';
@@ -60,6 +62,8 @@ app.use('/api/labs', labsRoutes);
 app.use('/api/genetics', geneticsRoutes);
 app.use('/api/batches', batchesRoutes);
 app.use('/api/operations', operationsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/sensors', sensorsRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/sensors/pulsegrow', pulseGrowRoutes);

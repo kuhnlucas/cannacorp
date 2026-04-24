@@ -4,7 +4,7 @@ import api from '../services/api';
 interface User {
   id: string;
   email: string;
-  role?: 'admin' | 'operator' | 'reader';
+  role?: string;
   name: string;
 }
 
@@ -51,11 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('📡 Respuesta del login:', { hasUser: !!response.user, hasToken: !!response.token, hasTenant: !!response.tenant });
       
       if (response.user && response.token) {
+        const memberRole = response.memberships?.[0]?.role || response.user.role || 'STAFF';
         const userData: User = {
           id: response.user.id,
           email: response.user.email,
           name: response.user.name,
-          role: 'operator'
+          role: memberRole
         };
         
         setUser(userData);

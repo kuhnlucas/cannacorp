@@ -1,0 +1,57 @@
+# ============================================================
+# .dockerignore — CannaCorp
+# ============================================================
+
+# Dependencias locales (se instalan dentro del contenedor)
+node_modules/
+backend/node_modules/
+
+# Build outputs
+dist/
+backend/dist/
+
+# Bases de datos SQLite locales
+*.db
+*.db-journal
+
+# Entorno
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Docs (no necesarios para build)
+*.md
+!README.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Bolt (si existe)
+.bolt/
+
+# Scripts de seed sueltos
+backend/create-*.js
+
+# Test data
+backend/data/*.json
+
+# HTTP examples
+*.http
+
+# OS
+.DS_Store
+Thumbs.db

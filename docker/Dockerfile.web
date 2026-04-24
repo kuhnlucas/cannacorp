@@ -1,0 +1,39 @@
+# ============================================================
+# Dockerfile.web — Frontend (Vite + React 18 + Tailwind)
+# ============================================================
+# Contexto de build: raíz del repo (donde está package.json del frontend)
+#
+# DEV:  no se usa este Dockerfile; docker-compose monta el código
+#       y ejecuta `vite --host 0.0.0.0` directamente.
+# PROD: multi-stage build → static assets servidos por nginx.
+# ============================================================
+
+# --- Stage 1: instalar dependencias ---
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# --- Stage 2: build estático ---
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY tsconfig.json tsconfig.app.json tsconfig.node.json ./
+COPY vite.config.ts tailwind.config.js postcss.config.js eslint.config.js ./
+COPY index.html ./
+COPY src/ ./src/
+
+# VITE_API_URL se bake-a en el bundle en build time
+ARG VITE_API_URL=http://localhost:3000/api
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+# Output en /app/dist
+
+# --- Stage 3: servir con nginx ---
+FROM nginx:1.27-alpine AS production
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

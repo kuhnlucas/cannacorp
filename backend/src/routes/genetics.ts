@@ -4,9 +4,9 @@ import { authenticateToken } from '../middleware';
 
 const router = Router();
 
-router.get('/', geneticsController.getGenetics_handler);
+router.get('/', authenticateToken, geneticsController.getGenetics_handler);
 router.post('/', authenticateToken, geneticsController.createGenetics);
-router.get('/:id', geneticsController.getGeneticsById);
+router.get('/:id', authenticateToken, authenticateToken, geneticsController.getGeneticsById);
 router.patch('/:id', authenticateToken, geneticsController.updateGenetics);
 router.delete('/:id', authenticateToken, geneticsController.deleteGenetics);
 

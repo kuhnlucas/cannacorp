@@ -3,17 +3,61 @@
  * Tareas diarias por sala
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, AlertCircle, Calendar } from 'lucide-react';
 import Card from '../../components/Card';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { mockPlanTasks } from '../../mocks/ops';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useData } from '../../contexts/DataContext';
+import { eventTypeLabels, EventType } from '../../mocks/ops';
+import api from '../../services/api';
+
+interface PlanTask {
+  id: string;
+  title: string;
+  labName: string;
+  batchCode: string;
+  dueDate: string;
+  completed: boolean;
+  overdue: boolean;
+}
 
 export default function OperationPlanPage() {
   const { t } = useLanguage();
-  const [tasks, setTasks] = useState(mockPlanTasks);
-  const [selectedRoom, setSelectedRoom] = useState<string | 'all'>('all');
+  const { labs } = useData();
+  const [tasks, setTasks] = useState<PlanTask[]>([]);
+  const [selectedLab, setSelectedLab] = useState<string | 'all'>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        const res = await api.operations.getAll();
+        const ops = res.operations || res || [];
+        // Convert recent operations into today's task list
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const planTasks: PlanTask[] = ops.map((op: any) => {
+          const created = new Date(op.createdAt);
+          return {
+            id: op.id,
+            title: `${eventTypeLabels[op.type as EventType] || op.type}${op.batch?.code ? ` — ${op.batch.code}` : ''}`,
+            labName: op.lab?.name || '—',
+            batchCode: op.batch?.code || '',
+            dueDate: op.createdAt,
+            completed: true, // Past operations are "done"
+            overdue: false,
+          };
+        });
+        setTasks(planTasks);
+      } catch (err) {
+        console.error('Error fetching plan:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlan();
+  }, []);
 
   const toggleTask = (id: string) => {
     setTasks(
@@ -22,28 +66,30 @@ export default function OperationPlanPage() {
   };
 
   const filteredTasks =
-    selectedRoom === 'all'
+    selectedLab === 'all'
       ? tasks
-      : tasks.filter((t) => t.room === selectedRoom);
+      : tasks.filter((t) => t.labName === selectedLab);
 
-  const uniqueRooms = Array.from(new Set(tasks.map((t) => t.room)));
+  const uniqueLabs = Array.from(new Set(tasks.map((t) => t.labName))).filter(n => n !== '—');
 
   const completedCount = filteredTasks.filter((t) => t.completed).length;
   const completionPercentage = Math.round(
     (completedCount / filteredTasks.length) * 100
   );
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    date.setHours(0, 0, 0, 0);
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
 
-    if (date.getTime() === today.getTime()) {
+    if (d.getTime() === today.getTime()) {
       return 'Hoy';
-    } else if (date.getTime() === tomorrow.getTime()) {
+    } else if (d.getTime() === tomorrow.getTime()) {
       return 'Mañana';
     } else {
       return date.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' });
@@ -114,29 +160,29 @@ export default function OperationPlanPage() {
           </Card>
         </div>
 
-        {/* Filtro de salas */}
+        {/* Filtro de labs */}
         <div className="mb-6 flex gap-2">
           <button
-            onClick={() => setSelectedRoom('all')}
+            onClick={() => setSelectedLab('all')}
             className={`px-4 py-2 rounded-lg font-medium transition ${
-              selectedRoom === 'all'
+              selectedLab === 'all'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
             }`}
           >
-            Todas las salas
+            Todos los labs
           </button>
-          {uniqueRooms.map((room) => (
+          {uniqueLabs.map((lab) => (
             <button
-              key={room}
-              onClick={() => setSelectedRoom(room)}
+              key={lab}
+              onClick={() => setSelectedLab(lab)}
               className={`px-4 py-2 rounded-lg font-medium transition ${
-                selectedRoom === room
+                selectedLab === lab
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
               }`}
             >
-              {room}
+              {lab}
             </button>
           ))}
         </div>
@@ -171,7 +217,7 @@ export default function OperationPlanPage() {
                     {task.title}
                   </p>
                   <div className="flex items-center gap-3 mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    <span>{task.room}</span>
+                    <span>{task.labName}</span>
                     <span>•</span>
                     <span>{formatDate(task.dueDate)}</span>
                   </div>

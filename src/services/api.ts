@@ -1,7 +1,7 @@
 // API Service for CannaCorp Frontend
 // Handles all communication with the backend API
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // Helper function to get token from localStorage
 const getToken = (): string | null => {
@@ -72,6 +72,17 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       }).then(r => r.json()),
+  },
+
+  // ===== Tenants =====
+  tenants: {
+    getAll: () => fetchWithAuth(`${API_URL}/tenants`),
+    getById: (id: string) => fetchWithAuth(`${API_URL}/tenants/${id}`),
+    create: (name: string) =>
+      fetchWithAuth(`${API_URL}/tenants`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      }),
   },
 
   // ===== Labs =====
@@ -191,21 +202,50 @@ export const api = {
 
   // ===== Pulse Grow Integration =====
   pulseGrow: {
-    // Get all devices with latest data
     getAllDevices: () =>
-      fetch(`${API_URL}/sensors/pulsegrow/devices`).then(r => r.json()),
+      fetchWithAuth(`${API_URL}/sensors/pulsegrow/devices`),
 
-    // Get recent data for a specific device
     getRecentData: (deviceId: string) =>
-      fetch(`${API_URL}/sensors/pulsegrow/${deviceId}/recent`).then(r => r.json()),
+      fetchWithAuth(`${API_URL}/sensors/pulsegrow/${deviceId}/recent`),
 
-    // Get historical data for a device
     getDeviceHistory: (deviceId: string, start: string, end?: string) => {
       const url = end
         ? `${API_URL}/sensors/pulsegrow/${deviceId}/history?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
         : `${API_URL}/sensors/pulsegrow/${deviceId}/history?start=${encodeURIComponent(start)}`;
-      return fetch(url).then(r => r.json());
+      return fetchWithAuth(url);
     },
+  },
+
+  // ===== Tuya Smart Life =====
+  tuya: {
+    getDevices: () => fetchWithAuth(`${API_URL}/tuya/devices`),
+
+    syncDevices: () =>
+      fetchWithAuth(`${API_URL}/tuya/sync`, { method: 'POST' }),
+
+    assignDeviceToLab: (deviceId: string, labId: string | null) =>
+      fetchWithAuth(`${API_URL}/tuya/devices/${deviceId}/lab`, {
+        method: 'PATCH',
+        body: JSON.stringify({ labId }),
+      }),
+
+    validateAppAccount: (uid: string) =>
+      fetchWithAuth(`${API_URL}/tuya/app-accounts/validate`, {
+        method: 'POST',
+        body: JSON.stringify({ uid }),
+      }),
+  },
+
+  // ===== Dashboard =====
+  dashboard: {
+    getStats: () => fetchWithAuth(`${API_URL}/dashboard/stats`),
+    getActivity: () => fetchWithAuth(`${API_URL}/dashboard/activity`),
+  },
+
+  // ===== Sensors =====
+  sensors: {
+    getAll: () => fetchWithAuth(`${API_URL}/sensors`),
+    getByLab: (labId: string) => fetchWithAuth(`${API_URL}/sensors?labId=${labId}`),
   },
 };
 

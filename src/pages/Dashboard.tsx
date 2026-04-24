@@ -1,15 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sprout, Beaker, TrendingUp, AlertTriangle, Thermometer, Droplets, ChevronDown, ChevronUp, Zap, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import Card from '../components/Card';
 import { useData } from '../contexts/DataContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import api from '../services/api';
+
+interface DashboardStats {
+  activeBatches: number;
+  genetics: number;
+  labs: number;
+  alerts: number;
+}
+
+interface ActivityItem {
+  id: string;
+  type: 'operation' | 'batch';
+  description: string;
+  detail: string;
+  createdAt: string;
+}
 
 export default function Dashboard() {
   const { labs, genetics, batches, measurements } = useData();
   const { t, language } = useLanguage();
   const [expandedStat, setExpandedStat] = useState<string | null>(null);
+  const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   const activeBatches = batches.filter(batch => batch.state !== 'harvested');
   const floweringBatches = batches.filter(batch => batch.state === 'flowering');
@@ -18,48 +36,56 @@ export default function Dashboard() {
     .filter(m => m.type === 'temperature' || m.type === 'humidity')
     .slice(-4);
 
-  const getTimeAgo = (hours: number): string => {
-    if (language === 'es') {
-      return `hace ${hours} horas`;
-    } else {
-      return `${hours} hours ago`;
-    }
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const [statsRes, activityRes] = await Promise.all([
+          api.dashboard.getStats().catch(() => null),
+          api.dashboard.getActivity().catch(() => null),
+        ]);
+        if (statsRes?.stats) setDashStats(statsRes.stats);
+        if (activityRes?.activity) setActivity(activityRes.activity);
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+      }
+    };
+    fetchDashboard();
+  }, []);
+
+  const getTimeAgo = (dateStr: string): string => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours < 1) return language === 'es' ? 'hace unos minutos' : 'just now';
+    if (language === 'es') return `hace ${hours} horas`;
+    return `${hours} hours ago`;
   };
 
   const stats = [
     {
       id: 'activeBatches',
       name: t('dashboard.activeBatches'),
-      value: activeBatches.length,
-      change: '+2',
-      changeType: 'increase',
+      value: dashStats?.activeBatches ?? activeBatches.length,
       icon: Sprout,
       color: 'text-green-600'
     },
     {
       id: 'genetics',
       name: t('dashboard.geneticsLibrary'),
-      value: genetics.length,
-      change: '+1',
-      changeType: 'increase',
+      value: dashStats?.genetics ?? genetics.length,
       icon: Beaker,
       color: 'text-blue-600'
     },
     {
       id: 'labs',
       name: t('dashboard.labsOnline'),
-      value: labs.length,
-      change: '100%',
-      changeType: 'increase',
+      value: dashStats?.labs ?? labs.length,
       icon: TrendingUp,
       color: 'text-purple-600'
     },
     {
       id: 'alerts',
       name: t('dashboard.alerts'),
-      value: 2,
-      change: '-1',
-      changeType: 'decrease',
+      value: dashStats?.alerts ?? 0,
       icon: AlertTriangle,
       color: 'text-red-600'
     },
@@ -143,13 +169,6 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.name}</p>
                       <div className="flex items-baseline">
                         <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                        <p className={`ml-2 text-sm font-medium ${
-                          stat.changeType === 'increase' 
-                            ? 'text-green-600 dark:text-green-400' 
-                            : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {stat.change}
-                        </p>
                       </div>
                     </div>
                   </div>
@@ -235,14 +254,15 @@ export default function Dashboard() {
 
                     {stat.id === 'alerts' && (
                       <div className="space-y-2">
-                        <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs border border-red-200 dark:border-red-900">
-                          <p className="font-medium text-red-700 dark:text-red-300">High Temperature Alert</p>
-                          <p className="text-red-600 dark:text-red-400 text-xs">Flower Room B - 28°C</p>
-                        </div>
-                        <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs border border-yellow-200 dark:border-yellow-900">
-                          <p className="font-medium text-yellow-700 dark:text-yellow-300">Humidity Warning</p>
-                          <p className="text-yellow-600 dark:text-yellow-400 text-xs">Veg Room A - 75% RH</p>
-                        </div>
+                        {(dashStats?.alerts ?? 0) === 0 ? (
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            {t('dashboard.allSystemsOnline')}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                            {dashStats?.alerts} {t('dashboard.alerts').toLowerCase()} {language === 'es' ? 'en las últimas 24h' : 'in the last 24h'}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -334,29 +354,21 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <Card title={t('dashboard.recentActivity')} subtitle={t('dashboard.latestCultivationEvents')}>
         <div className="space-y-4">
-          <div className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">{t('dashboard.newBatchStarted')}: BD-003</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('dashboard.blueDreamInVegRoom')} • {getTimeAgo(2)}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">{t('dashboard.environmentalAlertResolved')}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('dashboard.temperatureNormalizedFlowerRoom')} • {getTimeAgo(4)}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">{t('dashboard.newGeneticsAdded')}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('dashboard.gorillaGlueAdded')} • {getTimeAgo(6)}</p>
-            </div>
-          </div>
+          {activity.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+              {t('common.noData')}
+            </p>
+          ) : (
+            activity.map((item) => (
+              <div key={item.id} className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className={`w-2 h-2 rounded-full ${item.type === 'batch' ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">{item.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{item.detail} • {getTimeAgo(item.createdAt)}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>

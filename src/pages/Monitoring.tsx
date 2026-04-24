@@ -141,12 +141,36 @@ export default function Monitoring() {
     : batches.filter(b => b.labId === selectedLab && b.state !== 'harvested');
 
   // Generate sensor status based on measurements
-  const sensorStatus = labs.flatMap(lab => [
-    { id: `temp-${lab.id}`, name: 'Sensor Temperatura', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-    { id: `humidity-${lab.id}`, name: 'Sensor Humedad', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-    { id: `ph-${lab.id}`, name: 'Sensor pH', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-    { id: `ec-${lab.id}`, name: 'Sensor EC', lab: lab.name, status: 'online', lastReading: 'Ahora' }
-  ]);
+  const [sensorStatus, setSensorStatus] = useState<any[]>([]);
+  
+  useEffect(() => {
+    const fetchSensors = async () => {
+      try {
+        const res = await api.sensors.getAll();
+        if (res?.sensors) {
+          setSensorStatus(res.sensors.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            lab: s.lab?.name || '—',
+            status: s.status || 'online',
+            lastReading: s.lastRead ? new Date(s.lastRead).toLocaleString() : 'Sin datos',
+          })));
+        } else {
+          // Fallback: generate from labs
+          setSensorStatus(labs.flatMap(lab => [
+            { id: `temp-${lab.id}`, name: 'Sensor Temperatura', lab: lab.name, status: 'online', lastReading: 'Ahora' },
+            { id: `humidity-${lab.id}`, name: 'Sensor Humedad', lab: lab.name, status: 'online', lastReading: 'Ahora' },
+          ]));
+        }
+      } catch {
+        setSensorStatus(labs.flatMap(lab => [
+          { id: `temp-${lab.id}`, name: 'Sensor Temperatura', lab: lab.name, status: 'online', lastReading: 'Ahora' },
+          { id: `humidity-${lab.id}`, name: 'Sensor Humedad', lab: lab.name, status: 'online', lastReading: 'Ahora' },
+        ]));
+      }
+    };
+    fetchSensors();
+  }, [labs]);
 
   return (
     <div className="space-y-6">

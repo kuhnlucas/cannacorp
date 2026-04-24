@@ -1,95 +1,100 @@
 import { Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware';
 
-const dbPath = path.join(process.cwd(), 'data');
-const geneticsFile = path.join(dbPath, 'genetics.json');
+const prisma = new PrismaClient();
 
-const ensureDbDir = () => {
-  if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
-};
-
-const getGenetics = () => {
-  ensureDbDir();
-  if (!fs.existsSync(geneticsFile)) return [];
-  return JSON.parse(fs.readFileSync(geneticsFile, 'utf-8'));
-};
-
-const saveGenetics = (genetics: any) => {
-  ensureDbDir();
-  fs.writeFileSync(geneticsFile, JSON.stringify(genetics, null, 2));
-};
-
-export const getGenetics_handler = (req: Request, res: Response) => {
+export const getGenetics_handler = async (req: Request, res: Response) => {
   try {
-    const genetics = getGenetics();
+    const genetics = await prisma.genetics.findMany({
+      orderBy: { name: 'asc' },
+    });
     res.json(genetics);
   } catch (err) {
+    console.error('Error fetching genetics:', err);
     res.status(500).json({ error: 'Failed to get genetics' });
   }
 };
 
-export const createGenetics = (req: AuthRequest, res: Response) => {
+export const createGenetics = async (req: AuthRequest, res: Response) => {
   try {
     const { name, breeder, origin, type, thcMin, thcMax, cbdMin, cbdMax, terpenes } = req.body;
-    const genetics = getGenetics();
-    const newGene = {
-      id: Math.random().toString(36).substr(2, 9),
-      name,
-      breeder,
-      origin,
-      type,
-      thcMin,
-      thcMax,
-      cbdMin,
-      cbdMax,
-      terpenes,
-      createdAt: new Date().toISOString()
-    };
-    genetics.push(newGene);
-    saveGenetics(genetics);
-    res.json(newGene);
+
+    if (!name || !breeder) {
+      return res.status(400).json({ error: 'Name and breeder are required' });
+    }
+
+    const gene = await prisma.genetics.create({
+      data: {
+        name,
+        breeder,
+        origin: origin || '',
+        type: type || 'hybrid',
+        thcMin: thcMin ?? 0,
+        thcMax: thcMax ?? 0,
+        cbdMin: cbdMin ?? 0,
+        cbdMax: cbdMax ?? 0,
+        terpenes: terpenes || '',
+      },
+    });
+    res.json(gene);
   } catch (err) {
+    console.error('Error creating genetics:', err);
     res.status(500).json({ error: 'Failed to create genetics' });
   }
 };
 
-export const getGeneticsById = (req: Request, res: Response) => {
+export const getGeneticsById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const genetics = getGenetics();
-    const gene = genetics.find((g: any) => g.id === id);
+    const gene = await prisma.genetics.findUnique({
+      where: { id },
+      include: { batches: true },
+    });
     if (!gene) return res.status(404).json({ error: 'Genetics not found' });
     res.json(gene);
   } catch (err) {
+    console.error('Error fetching genetics by id:', err);
     res.status(500).json({ error: 'Failed to get genetics' });
   }
 };
 
-export const updateGenetics = (req: AuthRequest, res: Response) => {
+export const updateGenetics = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { name, breeder, origin, type, thcMin, thcMax, cbdMin, cbdMax, terpenes } = req.body;
-    let genetics = getGenetics();
-    const index = genetics.findIndex((g: any) => g.id === id);
-    if (index === -1) return res.status(404).json({ error: 'Genetics not found' });
-    genetics[index] = { ...genetics[index], name, breeder, origin, type, thcMin, thcMax, cbdMin, cbdMax, terpenes };
-    saveGenetics(genetics);
-    res.json(genetics[index]);
+
+    const existing = await prisma.genetics.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Genetics not found' });
+
+    const gene = await prisma.genetics.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(breeder !== undefined && { breeder }),
+        ...(origin !== undefined && { origin }),
+        ...(type !== undefined && { type }),
+        ...(thcMin !== undefined && { thcMin }),
+        ...(thcMax !== undefined && { thcMax }),
+        ...(cbdMin !== undefined && { cbdMin }),
+        ...(cbdMax !== undefined && { cbdMax }),
+        ...(terpenes !== undefined && { terpenes }),
+      },
+    });
+    res.json(gene);
   } catch (err) {
+    console.error('Error updating genetics:', err);
     res.status(500).json({ error: 'Failed to update genetics' });
   }
 };
 
-export const deleteGenetics = (req: AuthRequest, res: Response) => {
+export const deleteGenetics = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    let genetics = getGenetics();
-    genetics = genetics.filter((g: any) => g.id !== id);
-    saveGenetics(genetics);
+    await prisma.genetics.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
+    console.error('Error deleting genetics:', err);
     res.status(500).json({ error: 'Failed to delete genetics' });
   }
 };

@@ -3,58 +3,77 @@
  * Vista filtrable de eventos registrados
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, ChevronDown } from 'lucide-react';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { mockOperationEvents, eventTypeLabels, eventTypeColors, EventType } from '../../mocks/ops';
+import { eventTypeLabels, eventTypeColors, EventType } from '../../mocks/ops';
 import { useLanguage } from '../../contexts/LanguageContext';
+import api from '../../services/api';
+
+interface OperationRecord {
+  id: string;
+  type: string;
+  notes?: string;
+  data?: any;
+  createdAt: string;
+  batch?: { code: string };
+  lab?: { name: string };
+  user?: { name: string };
+}
 
 export default function OperationLogsPage() {
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterRoom, setFilterRoom] = useState('all');
   const [filterType, setFilterType] = useState<EventType | 'all'>('all');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [operations, setOperations] = useState<OperationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOps = async () => {
+      try {
+        const res = await api.operations.getAll();
+        setOperations(res.operations || res || []);
+      } catch (err) {
+        console.error('Error fetching operations:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOps();
+  }, []);
 
   const filteredEvents = useMemo(() => {
-    let filtered = [...mockOperationEvents];
+    let filtered = [...operations];
 
-    // Filtro por sala
-    if (filterRoom !== 'all') {
-      filtered = filtered.filter((e) => e.room === filterRoom);
-    }
-
-    // Filtro por tipo
     if (filterType !== 'all') {
       filtered = filtered.filter((e) => e.type === filterType);
     }
 
-    // Búsqueda
     if (searchTerm) {
+      const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (e) =>
-          e.room.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.lab.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (e.batch && e.batch.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (e.notes && e.notes.toLowerCase().includes(searchTerm.toLowerCase()))
+          (e.lab?.name || '').toLowerCase().includes(term) ||
+          (e.batch?.code || '').toLowerCase().includes(term) ||
+          (e.notes || '').toLowerCase().includes(term) ||
+          e.type.toLowerCase().includes(term)
       );
     }
 
-    // Ordenamiento
     filtered.sort((a, b) => {
       return sortOrder === 'desc'
-        ? b.timestamp.getTime() - a.timestamp.getTime()
-        : a.timestamp.getTime() - b.timestamp.getTime();
+        ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
     return filtered;
-  }, [searchTerm, filterRoom, filterType, sortOrder]);
+  }, [operations, searchTerm, filterType, sortOrder]);
 
-  const uniqueRooms = Array.from(new Set(mockOperationEvents.map((e) => e.room)));
-
-  const formatTime = (date: Date) => {
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -102,30 +121,11 @@ export default function OperationLogsPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Sala, lote..."
+                  placeholder="Lab, lote, tipo..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
                 />
-              </div>
-
-              {/* Sala */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Sala
-                </label>
-                <select
-                  value={filterRoom}
-                  onChange={(e) => setFilterRoom(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm"
-                >
-                  <option value="all">Todas</option>
-                  {uniqueRooms.map((room) => (
-                    <option key={room} value={room}>
-                      {room}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               {/* Tipo */}
@@ -168,7 +168,6 @@ export default function OperationLogsPage() {
               <button
                 onClick={() => {
                   setSearchTerm('');
-                  setFilterRoom('all');
                   setFilterType('all');
                 }}
                 className="w-full px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
@@ -180,7 +179,13 @@ export default function OperationLogsPage() {
 
           {/* Lista de eventos */}
           <div className="lg:col-span-3 space-y-3">
-            {filteredEvents.length === 0 ? (
+            {loading ? (
+              <Card>
+                <div className="text-center py-12">
+                  <p className="text-gray-500 dark:text-gray-400">Cargando...</p>
+                </div>
+              </Card>
+            ) : filteredEvents.length === 0 ? (
               <Card>
                 <div className="text-center py-12">
                   <p className="text-gray-500 dark:text-gray-400">
@@ -189,7 +194,9 @@ export default function OperationLogsPage() {
                 </div>
               </Card>
             ) : (
-              filteredEvents.map((event) => (
+              filteredEvents.map((event) => {
+                const parsedData = typeof event.data === 'string' ? JSON.parse(event.data || '{}') : (event.data || {});
+                return (
                 <Card
                   key={event.id}
                   className="p-4 hover:shadow-md transition cursor-pointer"
@@ -198,30 +205,30 @@ export default function OperationLogsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <Badge variant="info" size="sm">
-                          {eventTypeLabels[event.type]}
+                          {eventTypeLabels[event.type as EventType] || event.type}
                         </Badge>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {formatTime(event.timestamp)}
+                          {formatTime(event.createdAt)}
                         </span>
                       </div>
                       <div className="grid grid-cols-3 gap-4 mb-3 text-sm">
                         <div>
                           <span className="text-gray-500 dark:text-gray-400">Lab:</span>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {event.lab}
+                            {event.lab?.name || '—'}
                           </p>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Sala:</span>
+                          <span className="text-gray-500 dark:text-gray-400">Lote:</span>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {event.room}
+                            {event.batch?.code || '—'}
                           </p>
                         </div>
-                        {event.batch && (
+                        {event.user?.name && (
                           <div>
-                            <span className="text-gray-500 dark:text-gray-400">Lote:</span>
+                            <span className="text-gray-500 dark:text-gray-400">Usuario:</span>
                             <p className="font-medium text-gray-900 dark:text-white">
-                              {event.batch}
+                              {event.user.name}
                             </p>
                           </div>
                         )}
@@ -231,9 +238,9 @@ export default function OperationLogsPage() {
                           "{event.notes}"
                         </p>
                       )}
-                      {Object.keys(event.data).length > 0 && (
+                      {Object.keys(parsedData).length > 0 && (
                         <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                          {Object.entries(event.data)
+                          {Object.entries(parsedData)
                             .map(([key, value]) => `${key}: ${value}`)
                             .join(' • ')}
                         </div>
@@ -242,7 +249,8 @@ export default function OperationLogsPage() {
                     <ChevronDown className="h-5 w-5 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                   </div>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         </div>

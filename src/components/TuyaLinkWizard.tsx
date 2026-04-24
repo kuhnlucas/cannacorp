@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, ExternalLink, Copy, Check } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
+import api from '../services/api';
 
 interface TuyaLinkWizardProps {
   isOpen: boolean;
@@ -38,34 +39,7 @@ export default function TuyaLinkWizard({ isOpen, onClose, onSuccess }: TuyaLinkW
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('No estás autenticado. Por favor inicia sesión nuevamente.');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch('http://localhost:3000/api/tuya/app-accounts/validate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Id': selectedTenant.id,
-        },
-        body: JSON.stringify({ uid: uid.trim() }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Mostrar error detallado del servidor
-        if (data.details) {
-          setError(`${data.error}\n\n${data.details}`);
-        } else {
-          setError(data.error || 'Error al validar UID. Verifica que el UID sea correcto.');
-        }
-        return;
-      }
+      const data = await api.tuya.validateAppAccount(uid.trim());
 
       // Éxito
       alert(`✅ Vinculación exitosa! Se encontraron ${data.devicesCount} dispositivo(s).`);
@@ -73,9 +47,9 @@ export default function TuyaLinkWizard({ isOpen, onClose, onSuccess }: TuyaLinkW
       onClose();
       setStep(1);
       setUid('');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error validating UID:', err);
-      setError('Error de conexión. Verifica tu conexión a internet.');
+      setError(err?.message || 'Error de conexión. Verifica tu conexión a internet.');
     } finally {
       setLoading(false);
     }

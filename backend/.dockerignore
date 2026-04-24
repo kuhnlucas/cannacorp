@@ -1,0 +1,14 @@
+# .dockerignore para build context = ./backend
+node_modules/
+dist/
+*.db
+*.db-journal
+.env
+.env.local
+.git/
+*.md
+*.log
+npm-debug.log*
+create-*.js
+*.http
+.DS_Store

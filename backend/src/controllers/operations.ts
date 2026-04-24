@@ -1,80 +1,121 @@
 import { Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware';
 
-const dbPath = path.join(process.cwd(), 'data');
-const operationsFile = path.join(dbPath, 'operations.json');
+const prisma = new PrismaClient();
 
-const ensureDbDir = () => {
-  if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
-};
-
-const getOperations = () => {
-  ensureDbDir();
-  if (!fs.existsSync(operationsFile)) return [];
-  return JSON.parse(fs.readFileSync(operationsFile, 'utf-8'));
-};
-
-const saveOperations = (operations: any) => {
-  ensureDbDir();
-  fs.writeFileSync(operationsFile, JSON.stringify(operations, null, 2));
-};
-
-export const getOperations_handler = (req: Request, res: Response) => {
+export const getOperations_handler = async (req: Request, res: Response) => {
   try {
+    const tenantId = (req as any).tenant?.id;
     const { batchId } = req.query;
-    let operations = getOperations();
-    if (batchId) operations = operations.filter((op: any) => op.batchId === batchId);
+    const where: any = {};
+    if (tenantId) where.tenantId = tenantId;
+    if (batchId) where.batchId = batchId as string;
+
+    const operations = await prisma.operation.findMany({
+      where,
+      include: { batch: true, lab: true, user: { select: { id: true, name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
     res.json(operations);
   } catch (err) {
+    console.error('Error fetching operations:', err);
     res.status(500).json({ error: 'Failed to get operations' });
   }
 };
 
-export const createOperation = (req: AuthRequest, res: Response) => {
+export const createOperation = async (req: AuthRequest, res: Response) => {
   try {
-    const { batchId, type, lab, room, data, notes } = req.body;
-    const operations = getOperations();
-    const operation = {
-      id: Math.random().toString(36).substr(2, 9),
-      batchId,
-      type,
-      lab,
-      room,
-      data,
-      notes,
-      userId: req.userId,
-      createdAt: new Date().toISOString()
-    };
-    operations.push(operation);
-    saveOperations(operations);
+    const tenantId = (req as any).tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { batchId, type, labId, data, notes } = req.body;
+
+    if (!batchId || !type) {
+      return res.status(400).json({ error: 'batchId and type are required' });
+    }
+
+    const operation = await prisma.operation.create({
+      data: {
+        tenantId,
+        batchId,
+        type,
+        labId: labId || null,
+        data: typeof data === 'string' ? data : JSON.stringify(data || {}),
+        notes: notes || null,
+        userId,
+      },
+      include: { batch: true, lab: true, user: { select: { id: true, name: true, email: true } } },
+    });
     res.json(operation);
   } catch (err) {
+    console.error('Error creating operation:', err);
     res.status(500).json({ error: 'Failed to create operation' });
   }
 };
 
-export const getOperationById = (req: Request, res: Response) => {
+export const getOperationById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const operations = getOperations();
-    const operation = operations.find((op: any) => op.id === id);
+    const tenantId = (req as any).tenant?.id;
+    const where: any = { id };
+    if (tenantId) where.tenantId = tenantId;
+
+    const operation = await prisma.operation.findFirst({
+      where,
+      include: { batch: true, lab: true, user: { select: { id: true, name: true, email: true } } },
+    });
     if (!operation) return res.status(404).json({ error: 'Operation not found' });
     res.json(operation);
   } catch (err) {
+    console.error('Error fetching operation by id:', err);
     res.status(500).json({ error: 'Failed to get operation' });
   }
 };
 
-export const deleteOperation = (req: AuthRequest, res: Response) => {
+export const updateOperation = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    let operations = getOperations();
-    operations = operations.filter((op: any) => op.id !== id);
-    saveOperations(operations);
+    const tenantId = (req as any).tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const { type, data, notes } = req.body;
+
+    const existing = await prisma.operation.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Operation not found' });
+
+    const operation = await prisma.operation.update({
+      where: { id },
+      data: {
+        ...(type !== undefined && { type }),
+        ...(data !== undefined && { data: typeof data === 'string' ? data : JSON.stringify(data) }),
+        ...(notes !== undefined && { notes }),
+      },
+      include: { batch: true, lab: true, user: { select: { id: true, name: true, email: true } } },
+    });
+    res.json(operation);
+  } catch (err) {
+    console.error('Error updating operation:', err);
+    res.status(500).json({ error: 'Failed to update operation' });
+  }
+};
+
+export const deleteOperation = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = (req as any).tenant?.id;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID required' });
+
+    const existing = await prisma.operation.findFirst({ where: { id, tenantId } });
+    if (!existing) return res.status(404).json({ error: 'Operation not found' });
+
+    await prisma.operation.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
+    console.error('Error deleting operation:', err);
     res.status(500).json({ error: 'Failed to delete operation' });
   }
 };

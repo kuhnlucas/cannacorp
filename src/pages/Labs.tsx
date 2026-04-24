@@ -106,14 +106,7 @@ export default function Labs() {
       console.log('🔄 Cargando dispositivos Tuya para workspace:', tenantId, ' @', new Date().toISOString());
 
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:3000/api/tuya/devices', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-Tenant-Id': tenantId,
-          },
-        });
-        const data = await response.json();
+        const data = await api.tuya.getDevices();
         if (isCancelled) return;
         console.log('📊 Dispositivos Tuya recibidos:', data.devices);
         setTuyaDevices(data.devices || []);
@@ -178,35 +171,12 @@ export default function Labs() {
 
     try {
       setAssigningLabId(labId);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/tuya/devices/${tuyaDeviceId}/lab`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Tenant-Id': tenantId,
-        },
-        body: JSON.stringify({ labId }),
-      });
-      
-      const result = await response.json();
+      const result = await api.tuya.assignDeviceToLab(tuyaDeviceId, labId);
       console.log('📡 Respuesta del servidor:', result);
-      
-      if (response.ok) {
-        console.log('✅ Dispositivo Tuya asignado correctamente');
-        const updatedResponse = await fetch('http://localhost:3000/api/tuya/devices', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'X-Tenant-Id': tenantId,
-          },
-        });
-        const data = await updatedResponse.json();
-        console.log('📊 Dispositivos actualizados:', data.devices);
-        setTuyaDevices(data.devices || []);
-      } else {
-        console.error('❌ Error en la respuesta:', result);
-        alert(`Error: ${result.error || 'No se pudo asignar el dispositivo'}`);
-      }
+      console.log('✅ Dispositivo Tuya asignado correctamente');
+      const data = await api.tuya.getDevices();
+      console.log('📊 Dispositivos actualizados:', data.devices);
+      setTuyaDevices(data.devices || []);
     } catch (error) {
       console.error('❌ Error asignando dispositivo Tuya:', error);
       alert('Error de conexión. Verifica la consola para más detalles.');

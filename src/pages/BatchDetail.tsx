@@ -1,21 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Calendar, Droplets, Scissors, Sprout, Activity } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Badge from '../components/Badge';
 import { useData } from '../contexts/DataContext';
+import api from '../services/api';
+
+interface BatchOperation {
+  id: string;
+  type: string;
+  notes?: string;
+  data?: any;
+  createdAt: string;
+  user?: { name: string };
+}
 
 export default function BatchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { batches, genetics, labs, measurements } = useData();
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'measurements'>('overview');
+  const [operations, setOperations] = useState<BatchOperation[]>([]);
+  const [latestConditions, setLatestConditions] = useState<Record<string, { value: number; unit: string }>>({});
 
   const batch = batches.find(b => b.id === id);
   const genetic = genetics.find(g => g.id === batch?.geneticsId);
   const lab = labs.find(l => l.id === batch?.labId);
   const batchMeasurements = measurements.filter(m => m.batchId === id);
+
+  useEffect(() => {
+    if (!id) return;
+    // Fetch operations for this batch
+    api.operations.getByBatchId(id)
+      .then((res: any) => setOperations(res.operations || res || []))
+      .catch((err: any) => console.error('Error fetching batch operations:', err));
+
+    // Derive latest conditions from measurements
+    const latest: Record<string, { value: number; unit: string }> = {};
+    const sorted = [...batchMeasurements].sort((a, b) =>
+      new Date(b.takenAt || b.createdAt).getTime() - new Date(a.takenAt || a.createdAt).getTime()
+    );
+    for (const m of sorted) {
+      if (!latest[m.type]) {
+        latest[m.type] = { value: m.value, unit: m.unit };
+      }
+    }
+    setLatestConditions(latest);
+  }, [id, batchMeasurements.length]);
 
   if (!batch) {
     return (
@@ -28,33 +60,6 @@ export default function BatchDetail() {
   const getDaysFromSowing = () => {
     return Math.floor((Date.now() - new Date(batch.sowingDate).getTime()) / (1000 * 60 * 60 * 24));
   };
-
-  const events = [
-    {
-      id: '1',
-      type: 'watering',
-      date: '2024-01-18',
-      description: 'Regular watering - 2L per plant',
-      icon: Droplets,
-      color: 'text-blue-600'
-    },
-    {
-      id: '2',
-      type: 'pruning',
-      date: '2024-01-15',
-      description: 'Lower branch pruning for better air circulation',
-      icon: Scissors,
-      color: 'text-green-600'
-    },
-    {
-      id: '3',
-      type: 'transplanting',
-      date: '2024-01-10',
-      description: 'Transplanted to 7L pots',
-      icon: Sprout,
-      color: 'text-purple-600'
-    }
-  ];
 
   const getStateBadgeVariant = (state: string) => {
     switch (state) {
@@ -106,8 +111,8 @@ export default function BatchDetail() {
                 <p className="text-2xl font-bold text-purple-600">{genetic?.floweringDays || '--'} days</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Health Score</p>
-                <p className="text-2xl font-bold text-green-600">9.2/10</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Operations</p>
+                <p className="text-2xl font-bold text-green-600">{operations.length}</p>
               </div>
             </div>
 
@@ -190,26 +195,32 @@ export default function BatchDetail() {
           {activeTab === 'events' && (
             <Card title="Event Timeline">
               <div className="space-y-4">
-                {events.map((event) => (
-                  <div key={event.id} className="flex items-start space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-600 ${event.color}`}>
-                      <event.icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-gray-900 dark:text-white capitalize">
-                          {event.type}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(event.date).toLocaleDateString()}
+                {operations.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                    No events recorded yet
+                  </p>
+                ) : (
+                  operations.map((op) => (
+                    <div key={op.id} className="flex items-start space-x-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-600 text-blue-600">
+                        <Activity className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900 dark:text-white capitalize">
+                            {op.type}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(op.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {op.notes || (op.user?.name ? `by ${op.user.name}` : '')}
                         </p>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {event.description}
-                      </p>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </Card>
           )}
@@ -251,22 +262,16 @@ export default function BatchDetail() {
         <div className="space-y-6">
           <Card title="Current Conditions">
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Temperature</span>
-                <span className="font-bold text-red-600">24.5°C</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Humidity</span>
-                <span className="font-bold text-blue-600">65%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">pH</span>
-                <span className="font-bold text-green-600">6.2</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">EC</span>
-                <span className="font-bold text-purple-600">1.8 mS/cm</span>
-              </div>
+              {Object.keys(latestConditions).length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">No data yet</p>
+              ) : (
+                Object.entries(latestConditions).map(([type, { value, unit }]) => (
+                  <div key={type} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 capitalize">{type}</span>
+                    <span className="font-bold text-gray-900 dark:text-white">{value}{unit}</span>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
 
