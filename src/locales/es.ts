@@ -174,7 +174,7 @@ export const es = {
   analytics: {
     title: 'Panel de Analítica',
     loading: 'Cargando datos de analítica...',
-    noTenant: 'Seleccioná un workspace para ver los datos de analítica.',
+    noTenant: 'Selecciona un espacio de trabajo para ver los datos de analítica.',
     // Filters
     last30d: 'Últimos 30 días',
     last90d: 'Últimos 90 días',
@@ -206,13 +206,13 @@ export const es = {
     // Empty/error states
     noBatches: 'Sin lotes registrados',
     noDataTitle: 'Sin datos disponibles',
-    noDataSubtitle: 'Creá lotes, genéticas y mediciones para ver analítica real',
+    noDataSubtitle: 'Crea lotes, genéticas y mediciones para ver analítica real',
     errorTitle: 'No se pudieron cargar los datos',
-    errorSubtitle: 'Revisá la conexión al servidor o intentá nuevamente.',
+    errorSubtitle: 'Revisa la conexión al servidor o inténtalo nuevamente.',
     partialError: 'Algunos datos no pudieron recuperarse correctamente.',
     retry: 'Reintentar',
     // Harvest note
-    harvestDataNote: 'Para ver rendimiento real de cosecha (kg/m²), registrá el peso cosechado en cada lote. Esta funcionalidad estará disponible próximamente.',
+    harvestDataNote: 'Para ver el rendimiento real de cosecha (kg/m²), registra el peso cosechado en cada lote. Esta funcionalidad estará disponible próximamente.',
     // Legacy keys (mantenidos por compatibilidad)
     yieldPerPlant: 'Rendimiento por Planta',
     cycleTime: 'Tiempo de Ciclo',
