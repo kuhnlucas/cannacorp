@@ -20,6 +20,8 @@ const PULSE_GROW_API_KEY = process.env.PULSE_GROW_API_KEY;
 
 const EDENIC_BASE_URL = process.env.EDENIC_BASE_URL;
 const EDENIC_API_KEY = process.env.EDENIC_API_KEY;
+const EDENIC_ORGANIZATION_ID = process.env.EDENIC_ORGANIZATION_ID;
+// EDENIC_API_SECRET: legacy/deprecated — not used by edenicClient (API uses Authorization header only)
 const EDENIC_API_SECRET = process.env.EDENIC_API_SECRET;
 
 // Fail-fast for truly required secrets
@@ -48,10 +50,11 @@ export const config = {
   pulseGrowApiUrl: PULSE_GROW_API_URL,
   pulseGrowApiKey: PULSE_GROW_API_KEY,
 
-  // Edenic (prepared but not used yet)
+  // Edenic
   edenicBaseUrl: EDENIC_BASE_URL,
   edenicApiKey: EDENIC_API_KEY,
-  edenicApiSecret: EDENIC_API_SECRET,
+  edenicOrganizationId: EDENIC_ORGANIZATION_ID,
+  edenicApiSecret: EDENIC_API_SECRET, // legacy — not used by edenicClient
 
   // Helpers
   isTuyaConfigured(): boolean {
@@ -61,7 +64,7 @@ export const config = {
     return !!this.pulseGrowApiKey;
   },
   isEdenicConfigured(): boolean {
-    return !!(this.edenicApiKey && this.edenicApiSecret);
+    return !!(this.edenicBaseUrl && this.edenicApiKey && this.edenicOrganizationId);
   },
 };
 

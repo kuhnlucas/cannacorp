@@ -18,6 +18,7 @@ import sensorsRoutes from './routes/sensors';
 import pulseGrowRoutes from './routes/pulseGrow';
 import tuyaRoutes from './routes/tuya';
 import tuyaMultiTenantRoutes from './routes/tuyaMultiTenant';
+import edenicRoutes from './routes/edenic';
 
 const app = express();
 const PORT = config.port;
@@ -70,6 +71,7 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/sensors/pulsegrow', pulseGrowRoutes);
 app.use('/api/integrations/tuya', tuyaRoutes); // Legacy endpoint (sin multi-tenant)
 app.use('/api/tuya', tuyaMultiTenantRoutes); // New multi-tenant endpoints
+app.use('/api/integrations/edenic', edenicRoutes);
 
 // Error handler
 app.use(errorHandler);
