@@ -36,7 +36,7 @@ export const es = {
     password: 'Contraseña',
     signin: 'Iniciar sesión',
     loading: 'Iniciando sesión...',
-    invalidCredentials: 'Credenciales inválidas. Intenta admin@cannabis.com / admin123',
+    invalidCredentials: 'Email o contraseña incorrectos',
     error: 'Ha ocurrido un error. Por favor intenta de nuevo.',
   },
   dashboard: {

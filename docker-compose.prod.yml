@@ -51,6 +51,10 @@ services:
       - PULSE_GROW_API_URL=${PULSE_GROW_API_URL:-}
       - PULSE_GROW_API_KEY=${PULSE_GROW_API_KEY:-}
       - PULSE_GROW_TENANT_ID=${PULSE_GROW_TENANT_ID:-}
+      - EDENIC_BASE_URL=${EDENIC_BASE_URL:-https://api.edenic.io}
+      - EDENIC_API_KEY=${EDENIC_API_KEY:-}
+      - EDENIC_ORGANIZATION_ID=${EDENIC_ORGANIZATION_ID:-}
+      - EDENIC_TENANT_ID=${EDENIC_TENANT_ID:-}
     depends_on:
       db:
         condition: service_healthy

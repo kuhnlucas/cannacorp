@@ -72,7 +72,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white"
-                placeholder="admin@cannabis.com"
+                placeholder={t('login.email')}
               />
             </div>
 
@@ -89,7 +89,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white pr-10"
-                  placeholder="admin123"
+                  placeholder={t('login.password')}
                 />
                 <button
                   type="button"
@@ -109,11 +109,7 @@ export default function Login() {
               {loading ? t('login.loading') : t('login.signin')}
             </Button>
 
-            <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
-              <strong>Demo Credentials:</strong><br />
-              Email: admin@cannabis.com<br />
-              Password: admin123
-            </div>
+            {/* Demo credentials removed for security. */}
           </div>
         </form>
       </div>

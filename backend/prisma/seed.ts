@@ -10,6 +10,10 @@ const DEMO_TENANT_NAME = 'CannaCorp Demo';
 const DEMO_ROLE = 'OWNER';
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Seed is not allowed in production');
+  }
+
   console.log('🌱 Ejecutando seed demo...\n');
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);

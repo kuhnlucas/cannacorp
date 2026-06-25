@@ -46,9 +46,7 @@ COPY --from=build /app/prisma ./prisma
 # Copiar package.json (lo necesita node para resolver imports)
 COPY --from=build /app/package.json ./
 
-# Copiar carpeta data/ (JSON files usados por los controllers que aún no migran a Prisma)
-# ELIMINAR esta línea cuando se complete la migración a Prisma (ver AUDIT.md H-02)
-COPY data/ ./data/
+# NOTE: demo JSON data no longer copied into image to avoid shipping secrets/files in production
 
 # Copiar entrypoint
 COPY docker/entrypoint.sh ./entrypoint.sh
