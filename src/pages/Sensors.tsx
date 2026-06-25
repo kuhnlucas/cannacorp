@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Wifi, Zap, Thermometer, Droplets, Wind, Sun } from 'lucide-react';
+import { Wifi, Zap, Thermometer, Droplets, Wind, Sun, Leaf } from 'lucide-react';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import TuyaLinkWizard from '../components/TuyaLinkWizard';
 import { useTenant } from '../contexts/TenantContext';
-import api from '../services/api';
+import api, { EdenicDevice } from '../services/api';
 
 interface PulseGrowDevice {
   id: string;
@@ -38,8 +38,12 @@ export default function Sensors() {
   const [tuyaDevices, setTuyaDevices] = useState<TuyaDevice[]>([]);
   const [loadingPulse, setLoadingPulse] = useState(true);
   const [loadingTuya, setLoadingTuya] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pulse' | 'tuya'>('pulse');
+  const [activeTab, setActiveTab] = useState<'pulse' | 'tuya' | 'edenic'>('pulse');
   const [showWizard, setShowWizard] = useState(false);
+  const [edicDevices, setEdicDevices] = useState<EdenicDevice[]>([]);
+  const [loadingEdenic, setLoadingEdenic] = useState(false);
+  const [edicError, setEdicError] = useState<string | null>(null);
+  const [edicFetchedForTenant, setEdicFetchedForTenant] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPulseGrowData();
@@ -109,6 +113,39 @@ export default function Sensors() {
     }
   };
 
+  const fetchEdenicData = async () => {
+    if (!selectedTenant) return;
+    setEdicDevices([]);
+    setEdicError(null);
+    setLoadingEdenic(true);
+    try {
+      const data = await api.edenic.getDevices();
+      setEdicDevices(data.devices || []);
+      setEdicFetchedForTenant(selectedTenant.id);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('403')) {
+        setEdicError('forbidden');
+      } else if (msg.includes('400')) {
+        setEdicError('bad_request');
+      } else {
+        setEdicError('general');
+      }
+    } finally {
+      setLoadingEdenic(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (activeTab !== 'edenic') return;
+    if (!selectedTenant) return;
+    const isAllowed = selectedTenant.role === 'OWNER' || selectedTenant.role === 'ADMIN';
+    if (!isAllowed) return;
+    if (edicFetchedForTenant === selectedTenant.id) return;
+    fetchEdenicData();
+  }, [activeTab, selectedTenant]);
+
   const convertFtoC = (fahrenheit: number) => {
     return ((fahrenheit - 32) * 5) / 9;
   };
@@ -129,6 +166,8 @@ export default function Sensors() {
     };
     return categories[category] || category;
   };
+
+  const isEdenicUser = selectedTenant?.role === 'OWNER' || selectedTenant?.role === 'ADMIN';
 
   return (
     <div className="p-6">
@@ -169,6 +208,21 @@ export default function Sensors() {
             Tuya Smart Life ({tuyaDevices.length})
           </div>
         </button>
+        {isEdenicUser && (
+          <button
+            onClick={() => setActiveTab('edenic')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+              activeTab === 'edenic'
+                ? 'border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-500'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Leaf className="h-4 w-4" />
+              Edenic ({edicDevices.length})
+            </div>
+          </button>
+        )}
       </div>
 
       {/* Pulse Grow Sensors */}
@@ -421,6 +475,92 @@ export default function Sensors() {
                           </div>
                         </details>
                       )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edenic Devices */}
+      {activeTab === 'edenic' && (
+        <div>
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={fetchEdenicData}
+              disabled={loadingEdenic}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg className={`h-4 w-4 ${loadingEdenic ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {loadingEdenic ? 'Cargando...' : 'Actualizar'}
+            </button>
+          </div>
+
+          {loadingEdenic ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-emerald-600 border-r-transparent"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Cargando dispositivos Edenic...</p>
+            </div>
+          ) : edicError ? (
+            <Card>
+              <div className="text-center py-12">
+                <Leaf className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">
+                  {edicError === 'forbidden'
+                    ? 'No tenés permisos para ver Edenic en este tenant o el tenant seleccionado no está autorizado.'
+                    : edicError === 'bad_request'
+                    ? 'Seleccioná un tenant válido para consultar Edenic.'
+                    : 'No se pudieron cargar los dispositivos Edenic.'}
+                </p>
+              </div>
+            </Card>
+          ) : edicDevices.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <Leaf className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">
+                  No hay dispositivos Edenic disponibles.
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {edicDevices.map((device) => {
+                const displayName = device.label || device.name || device.id;
+                const shortId = device.id.length > 8 ? `${device.id.slice(0, 8)}...` : device.id;
+                const subType = device.additionalInfo?.deviceSubType as string | undefined;
+
+                return (
+                  <Card key={device.id}>
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                          {displayName}
+                        </h3>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {device.deleted && (
+                            <Badge variant="danger" size="sm">Eliminado</Badge>
+                          )}
+                          {device.gateway === true && (
+                            <Badge variant="default" size="sm">Gateway</Badge>
+                          )}
+                          {device.gateway === false && (
+                            <Badge variant="success" size="sm">Sensor</Badge>
+                          )}
+                        </div>
+                      </div>
+                      {subType && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{subType}</p>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                        ID: {shortId}
+                      </span>
                     </div>
                   </Card>
                 );
