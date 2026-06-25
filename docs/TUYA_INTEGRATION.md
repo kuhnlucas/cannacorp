@@ -54,7 +54,7 @@ Editar `/backend/.env`:
 ```env
 # Tuya IoT Cloud Configuration
 TUYA_CLIENT_ID=tu_access_id_aqui
-TUYA_CLIENT_SECRET=tu_access_secret_aqui
+TUYA_CLIENT_SECRET=REPLACE_WITH_YOUR_TUYA_CLIENT_SECRET
 TUYA_REGION=us  # us, eu, cn, o in
 ```
 

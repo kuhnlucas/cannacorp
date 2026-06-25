@@ -122,7 +122,7 @@ sign = HMAC-SHA256(signStr, client_secret).toUpperCase()
 ### 2. Configurar .env
 ```env
 TUYA_CLIENT_ID=tu_access_id
-TUYA_CLIENT_SECRET=tu_access_secret
+   TUYA_CLIENT_SECRET=REPLACE_WITH_YOUR_TUYA_CLIENT_SECRET
 TUYA_REGION=us
 ```
 

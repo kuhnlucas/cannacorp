@@ -66,7 +66,7 @@ Opción B - Tuya Developer App:
 ```bash
 # Editar /backend/.env
 TUYA_CLIENT_ID=tu_access_id_aqui
-TUYA_CLIENT_SECRET=tu_access_secret_aqui
+  TUYA_CLIENT_SECRET=REPLACE_WITH_YOUR_TUYA_CLIENT_SECRET
 TUYA_REGION=us
 
 # El backend ya está corriendo en http://localhost:3000

@@ -80,13 +80,15 @@ curl -X POST http://localhost:3000/api/integrations/tuya/devices/DEVICE_ID/comma
 
 ## 📋 Verificar Configuración Actual
 
-Tu configuración en `.env`:
+Tu configuración en `.env` (NO incluir valores reales en el repositorio):
 ```
-TUYA_CLIENT_ID=aetxa89fhcnrrgrf98tf
-TUYA_CLIENT_SECRET=1ff38f1732224732af9cf431ecbf0107
+TUYA_CLIENT_ID=REPLACE_WITH_YOUR_TUYA_CLIENT_ID
+TUYA_CLIENT_SECRET=REPLACE_WITH_YOUR_TUYA_CLIENT_SECRET
 TUYA_REGION=us
 TUYA_BASE_URL=https://openapi-ueaz.tuyaus.com
 ```
+
+**Advertencia:** Nunca subas credenciales reales al repositorio. Si encontraste claves en este repositorio, rota esas claves inmediatamente.
 
 Project Code: **p17696950259504urpk9**
 Data Center: **US East (Arizona)** - `https://openapi-ueaz.tuyaus.com`
