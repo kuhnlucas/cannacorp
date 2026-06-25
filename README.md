@@ -39,7 +39,7 @@ npm install
 cd backend
 npm install
 
-# 3. Iniciar API (puerto 3000)
+# 3. Iniciar API (puerto 3000, desde `backend`)
 npm run dev
 
 # 4. En otra terminal, iniciar frontend (puerto 5173)
