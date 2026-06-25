@@ -288,14 +288,17 @@ export class TuyaClient {
         const devices = response.data.result;
         console.log(`✅ Found ${devices.length} devices`);
         if (devices.length > 0) {
-          console.log(`📊 First device sample:`, JSON.stringify({
-            id: devices[0].id,
-            name: devices[0].name,
-            online: devices[0].online,
-            status: devices[0].status,
-            hasStatus: !!devices[0].status,
-            statusLength: devices[0].status?.length || 0
-          }, null, 2));
+          // Only print detailed device sample in non-production to avoid leaking device data in prod logs
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`📊 First device sample:`, JSON.stringify({
+              id: devices[0].id,
+              name: devices[0].name,
+              online: devices[0].online,
+              status: devices[0].status,
+              hasStatus: !!devices[0].status,
+              statusLength: devices[0].status?.length || 0
+            }, null, 2));
+          }
         }
         return devices;
       }

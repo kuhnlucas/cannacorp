@@ -9,6 +9,13 @@ import config from '../config';
 
 const router = Router();
 
+// Legacy endpoints are disabled for safety. Return 410 to force use of multi-tenant endpoints.
+router.use((req, res) => {
+  return res.status(410).json({
+    error: 'Legacy Tuya endpoint disabled. Use /api/tuya instead.',
+  });
+});
+
 /**
  * GET /api/integrations/tuya/devices
  * Lista todos los dispositivos Tuya vinculados

@@ -52,6 +52,11 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, async (req: Re
     const region = (bodyRegion as string) || config.tuyaRegion || 'us';
     const baseUrl = (bodyBaseUrl as string) || config.tuyaBaseUrl || undefined;
 
+    // Ensure Tuya central credentials are configured before creating client
+    if (!config.isTuyaConfigured()) {
+      return res.status(503).json({ error: 'Tuya integration not configured' });
+    }
+
     // Llamar a Tuya para listar dispositivos del UID
     const client = createTuyaClient({ region, baseUrl });
     let devices;
@@ -181,6 +186,11 @@ router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Res
     // Auto-registrar nuevos dispositivos al consultar la lista
     try {
       if (appAccount) {
+        // Guard: ensure central Tuya credentials present
+        if (!config.isTuyaConfigured()) {
+          return res.status(503).json({ error: 'Tuya integration not configured' });
+        }
+
         const devicesFromTuya = await client.listDevicesByUid(appAccount.uid);
         for (const device of devicesFromTuya) {
           await prisma.tuyaDevice.upsert({
@@ -206,7 +216,14 @@ router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Res
         }
       }
     } catch (syncErr: unknown) {
-      console.error('⚠️  No se pudo auto-registrar dispositivos Tuya:', (syncErr as Error)?.message);
+      const msg = (syncErr as any)?.message || '';
+      // Map known Tuya service expiration to 503
+      if (msg.includes('IoT Core service subscription has expired')) {
+        console.error('⚠️  Tuya IoT Core subscription expired');
+        return res.status(503).json({ error: 'Tuya IoT Core service is not active' });
+      }
+
+      console.error('⚠️  No se pudo auto-registrar dispositivos Tuya:', msg);
     }
 
     const devices = await prisma.tuyaDevice.findMany({
@@ -259,10 +276,16 @@ router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Res
     }));
 
     res.json({ devices: devicesFormatted });
-  } catch (error) {
-    console.error('Error fetching Tuya devices:', error);
-    res.status(500).json({ error: 'Failed to fetch devices' });
-  }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('IoT Core service subscription has expired')) {
+        console.error('❌ Tuya IoT Core subscription expired when fetching devices');
+        return res.status(503).json({ error: 'Tuya IoT Core service is not active' });
+      }
+
+      console.error('Error fetching Tuya devices:', msg);
+      res.status(500).json({ error: 'Failed to fetch devices' });
+    }
 });
 
 /**
@@ -285,6 +308,11 @@ router.get('/devices/:tuyaDeviceId/status', requireAuth, requireTenant, async (r
       return res.status(404).json({ error: 'Device not found or no access' });
     }
 
+    // Ensure Tuya is configured
+    if (!config.isTuyaConfigured()) {
+      return res.status(503).json({ error: 'Tuya integration not configured' });
+    }
+
     // Llamar a Tuya para obtener estado actual
     const client = createTuyaClient();
     const status = await client.getDeviceStatus(tuyaDeviceId);
@@ -301,8 +329,14 @@ router.get('/devices/:tuyaDeviceId/status', requireAuth, requireTenant, async (r
       humidity: normalized.humidity,
       rawStatus: status.status,
     });
-  } catch (error) {
-    console.error('Error fetching device status:', error);
+  } catch (error: any) {
+    const msg = error?.message || '';
+    if (msg.includes('IoT Core service subscription has expired')) {
+      console.error('❌ Tuya IoT Core subscription expired when fetching device status');
+      return res.status(503).json({ error: 'Tuya IoT Core service is not active' });
+    }
+
+    console.error('Error fetching device status:', msg);
     res.status(500).json({ error: 'Failed to fetch device status' });
   }
 });
@@ -326,6 +360,10 @@ router.post('/sync', requireAuth, requireTenant, async (req: Request, res: Respo
 
     // Sincronizar dispositivos
     console.log(`🔄 Sincronización manual solicitada para tenant: ${tenantId}`);
+    if (!config.isTuyaConfigured()) {
+      return res.status(503).json({ error: 'Tuya integration not configured' });
+    }
+
     const client = createTuyaClient({
       region: appAccount.region || config.tuyaRegion || 'us',
       baseUrl: appAccount.baseUrl || config.tuyaBaseUrl || undefined,
@@ -376,8 +414,14 @@ router.post('/sync', requireAuth, requireTenant, async (req: Request, res: Respo
       devicesCount: syncedDevices.length,
       lastSyncAt: new Date(),
     });
-  } catch (error) {
-    console.error('Error syncing Tuya devices:', error);
+  } catch (error: any) {
+    const msg = error?.message || '';
+    if (msg.includes('IoT Core service subscription has expired')) {
+      console.error('❌ Tuya IoT Core subscription expired during sync');
+      return res.status(503).json({ error: 'Tuya IoT Core service is not active' });
+    }
+
+    console.error('Error syncing Tuya devices:', msg);
     res.status(500).json({ error: 'Failed to sync devices' });
   }
 });

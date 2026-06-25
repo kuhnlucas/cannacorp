@@ -69,7 +69,10 @@ app.use('/api/sensors', sensorsRoutes);
 
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/sensors/pulsegrow', pulseGrowRoutes);
-app.use('/api/integrations/tuya', tuyaRoutes); // Legacy endpoint (sin multi-tenant)
+// Disable legacy Tuya integration endpoints for safety and force use of multi-tenant routes
+app.use('/api/integrations/tuya', (req, res) => {
+  return res.status(410).json({ error: 'Legacy Tuya endpoint disabled. Use /api/tuya instead.' });
+});
 app.use('/api/tuya', tuyaMultiTenantRoutes); // New multi-tenant endpoints
 app.use('/api/integrations/edenic', edenicRoutes);
 
