@@ -1,11 +1,11 @@
 import axios from 'axios';
+import config from '../config';
 
-
-const PULSE_GROW_API_URL = process.env.PULSE_GROW_API_URL || 'https://api.pulsegrow.com';
-const API_KEY = process.env.PULSE_GROW_API_KEY || '';
+const PULSE_GROW_API_URL = config.pulseGrowApiUrl;
+const API_KEY = config.pulseGrowApiKey || '';
 
 if (!API_KEY) {
-  console.warn('Pulse Grow API key not set. Set PULSE_GROW_API_KEY in your environment.');
+  // Keep silent on startup; endpoints using Pulse should throw if required at call time.
 }
 
 
@@ -13,10 +13,11 @@ if (!API_KEY) {
 export async function getAllDevices() {
   if (!API_KEY) throw new Error('Pulse Grow API key not configured');
   const url = `${PULSE_GROW_API_URL}/all-devices`;
-  const response = await axios.get(url, {
+  const client = axios.create({ baseURL: PULSE_GROW_API_URL, timeout: 15000 });
+  const response = await client.get('/all-devices', {
     headers: {
-      'x-api-key': API_KEY
-    }
+      'x-api-key': API_KEY,
+    },
   });
   return response.data;
 }
@@ -24,11 +25,9 @@ export async function getAllDevices() {
 // Get recent data for a device
 export async function getRecentData(deviceId: string) {
   if (!API_KEY) throw new Error('Pulse Grow API key not configured');
-  const url = `${PULSE_GROW_API_URL}/devices/${deviceId}/recent-data`;
-  const response = await axios.get(url, {
-    headers: {
-      'x-api-key': API_KEY
-    }
+  const client = axios.create({ baseURL: PULSE_GROW_API_URL, timeout: 15000 });
+  const response = await client.get(`/devices/${deviceId}/recent-data`, {
+    headers: { 'x-api-key': API_KEY },
   });
   return response.data;
 }
@@ -36,12 +35,12 @@ export async function getRecentData(deviceId: string) {
 // Get historical data for a device
 export async function getDeviceHistory(deviceId: string, start: string, end?: string) {
   if (!API_KEY) throw new Error('Pulse Grow API key not configured');
-  let url = `${PULSE_GROW_API_URL}/devices/${deviceId}/data-range?start=${encodeURIComponent(start)}`;
-  if (end) url += `&end=${encodeURIComponent(end)}`;
-  const response = await axios.get(url, {
-    headers: {
-      'x-api-key': API_KEY
-    }
+  const client = axios.create({ baseURL: PULSE_GROW_API_URL, timeout: 15000 });
+  const params: any = { start };
+  if (end) params.end = end;
+  const response = await client.get(`/devices/${deviceId}/data-range`, {
+    headers: { 'x-api-key': API_KEY },
+    params,
   });
   return response.data;
 }

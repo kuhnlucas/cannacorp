@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler, authenticateToken } from './middleware';
+import config from './config';
 
 import authRoutes from './routes/auth';
 import tenantsRoutes from './routes/tenants';
@@ -19,7 +20,7 @@ import tuyaRoutes from './routes/tuya';
 import tuyaMultiTenantRoutes from './routes/tuyaMultiTenant';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 
 // Seguridad básica
 app.set('trust proxy', 1); // respeta IP real detrás de proxies

@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { createTuyaClient } from '../services/tuyaClient';
+import config from '../config';
 
 const router = Router();
 
@@ -230,7 +231,7 @@ router.get('/test', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Tuya integration is working correctly',
-      region: process.env.TUYA_REGION || 'us',
+      region: config.tuyaRegion || 'us',
       devicesFound: devices.length,
       timestamp: new Date().toISOString(),
     });

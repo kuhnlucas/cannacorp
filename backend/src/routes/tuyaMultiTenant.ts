@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireTenant } from '../middleware/requireTenant';
 import { createTuyaClient } from '../services/tuyaClient';
+import config from '../config';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -48,8 +49,8 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, async (req: Re
     }
 
     const tenantId = req.tenant!.id;
-    const region = (bodyRegion as string) || process.env.TUYA_REGION || 'us';
-    const baseUrl = (bodyBaseUrl as string) || process.env.TUYA_BASE_URL || '';
+    const region = (bodyRegion as string) || config.tuyaRegion || 'us';
+    const baseUrl = (bodyBaseUrl as string) || config.tuyaBaseUrl || undefined;
 
     // Llamar a Tuya para listar dispositivos del UID
     const client = createTuyaClient({ region, baseUrl });
@@ -100,11 +101,11 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, async (req: Re
       create: {
         tenantId,
         uid: uid.trim(),
-        baseUrl,
+        baseUrl: baseUrl ?? config.tuyaBaseUrl ?? '',
         region,
       },
       update: {
-        baseUrl,
+        baseUrl: baseUrl ?? config.tuyaBaseUrl ?? '',
         region,
         updatedAt: new Date(),
       },
@@ -173,8 +174,8 @@ router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Res
     // Usar región/baseUrl guardados en la cuenta si existe
     const appAccount = await prisma.tuyaAppAccount.findFirst({ where: { tenantId } });
     const client = createTuyaClient({
-      region: appAccount?.region || process.env.TUYA_REGION || 'us',
-      baseUrl: appAccount?.baseUrl || process.env.TUYA_BASE_URL || undefined,
+        region: appAccount?.region || config.tuyaRegion || 'us',
+        baseUrl: appAccount?.baseUrl || config.tuyaBaseUrl || undefined,
     });
 
     // Auto-registrar nuevos dispositivos al consultar la lista
@@ -326,8 +327,8 @@ router.post('/sync', requireAuth, requireTenant, async (req: Request, res: Respo
     // Sincronizar dispositivos
     console.log(`🔄 Sincronización manual solicitada para tenant: ${tenantId}`);
     const client = createTuyaClient({
-      region: appAccount.region || process.env.TUYA_REGION || 'us',
-      baseUrl: appAccount.baseUrl || process.env.TUYA_BASE_URL || undefined,
+      region: appAccount.region || config.tuyaRegion || 'us',
+      baseUrl: appAccount.baseUrl || config.tuyaBaseUrl || undefined,
     });
     const devices = await client.listDevicesByUid(appAccount.uid);
     console.log(`📡 Obtenidos ${devices.length} dispositivos desde Tuya API`);

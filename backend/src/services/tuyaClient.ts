@@ -449,14 +449,16 @@ export class TuyaClient {
 /**
  * Factory para crear instancias del cliente Tuya
  */
+import centralConfig from '../config';
+
 export function createTuyaClient(config?: Partial<TuyaConfig>): TuyaClient {
-  const clientId = config?.clientId || process.env.TUYA_CLIENT_ID;
-  const clientSecret = config?.clientSecret || process.env.TUYA_CLIENT_SECRET;
-  const region = config?.region || process.env.TUYA_REGION || 'us';
-  const baseUrl = config?.baseUrl || process.env.TUYA_BASE_URL;
+  const clientId = config?.clientId || centralConfig.tuyaClientId;
+  const clientSecret = config?.clientSecret || centralConfig.tuyaClientSecret;
+  const region = config?.region || centralConfig.tuyaRegion || 'us';
+  const baseUrl = config?.baseUrl || centralConfig.tuyaBaseUrl;
 
   if (!clientId || !clientSecret) {
-    throw new Error('Tuya credentials not configured. Set TUYA_CLIENT_ID and TUYA_CLIENT_SECRET in .env');
+    throw new Error('Tuya credentials not configured. Set TUYA_CLIENT_ID and TUYA_CLIENT_SECRET in environment or use tenant-specific config.');
   }
 
   return new TuyaClient({
