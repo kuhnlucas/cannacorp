@@ -42,6 +42,67 @@ const EDENIC_TELEMETRY_KEYS: EdenicTelemetryKey[] = [
   'electrical_conductivity',
 ];
 
+const EDENIC_HISTORY_COOLDOWN_MS = 60_000;
+const EDENIC_HISTORY_INTERVAL_MS = 5 * 60 * 1_000;
+const EDENIC_HISTORY_RANGE_MS = 2 * 60 * 60 * 1_000;
+
+// ---------------------------------------------------------------------------
+// Minimal SVG sparkline — no external dependency
+// ---------------------------------------------------------------------------
+
+// Keep sparkline consistent with displayed values to avoid amplifying invisible decimal changes.
+const getDisplayPrecision = (key: string): number => {
+  if (key === 'temperature') return 1;
+  if (key === 'ph') return 2;
+  if (key === 'electrical_conductivity') return 2;
+  return 2;
+};
+
+const roundForDisplay = (value: number, precision: number): number =>
+  Number(value.toFixed(precision));
+
+function MiniSparkline({
+  points,
+  color,
+  precision = 2,
+}: {
+  points: { ts: number; value: string | number }[];
+  color: string;
+  precision?: number;
+}) {
+  const validPoints = points.filter(
+    (p) => p.value !== null && p.value !== undefined && p.value !== '' && !isNaN(Number(p.value))
+  );
+  if (validPoints.length < 2) return null;
+  // Round to display precision so sparkline matches the table values shown to the user.
+  const values = validPoints.map((p) => roundForDisplay(Number(p.value), precision));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // If all rounded values are equal, range = 0 → flat line (correct, no amplification).
+  const range = max - min || 1;
+  const W = 80;
+  const H = 24;
+  const pts = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * W;
+      const y = H - ((v - min) / range) * (H - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg width={W} height={H} className="flex-shrink-0">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 const getLatestTelemetryValue = (
   telemetry: EdenicTelemetryResponse | undefined,
   key: string
@@ -73,6 +134,11 @@ export default function Sensors() {
   const [loadingEdenicTelemetry, setLoadingEdenicTelemetry] = useState<Record<string, boolean>>({});
   const [edenicTelemetryErrors, setEdenicTelemetryErrors] = useState<Record<string, string>>({});
   const [edenicTelemetryFetchedAt, setEdenicTelemetryFetchedAt] = useState<Record<string, number>>({});
+  const [edenicHistoryByDevice, setEdenicHistoryByDevice] = useState<Record<string, EdenicTelemetryResponse>>({});
+  const [loadingEdenicHistory, setLoadingEdenicHistory] = useState<Record<string, boolean>>({});
+  const [edenicHistoryErrors, setEdenicHistoryErrors] = useState<Record<string, string>>({});
+  const [edenicHistoryFetchedAt, setEdenicHistoryFetchedAt] = useState<Record<string, number>>({});
+  const [expandedEdenicHistoryDevice, setExpandedEdenicHistoryDevice] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPulseGrowData();
@@ -199,6 +265,49 @@ export default function Sensors() {
     }
   };
 
+  const fetchEdenicHistory = async (deviceId: string) => {
+    if (!deviceId) return;
+    if (loadingEdenicHistory[deviceId]) return;
+    const now = Date.now();
+    const lastFetch = edenicHistoryFetchedAt[deviceId];
+    if (lastFetch && now - lastFetch < EDENIC_HISTORY_COOLDOWN_MS) return;
+    setLoadingEdenicHistory((prev) => ({ ...prev, [deviceId]: true }));
+    setEdenicHistoryErrors((prev) => {
+      const next = { ...prev };
+      delete next[deviceId];
+      return next;
+    });
+    try {
+      const endTs = Date.now();
+      const startTs = endTs - EDENIC_HISTORY_RANGE_MS;
+      const data = await api.edenic.getTelemetryHistory(deviceId, {
+        keys: ['ph', 'temperature', 'electrical_conductivity'],
+        startTs,
+        endTs,
+        interval: EDENIC_HISTORY_INTERVAL_MS,
+        agg: 'AVG',
+        orderBy: 'ASC',
+      });
+      setEdenicHistoryByDevice((prev) => ({ ...prev, [deviceId]: data }));
+      setEdenicHistoryFetchedAt((prev) => ({ ...prev, [deviceId]: Date.now() }));
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      let friendlyError: string;
+      if (msg.includes('403')) {
+        friendlyError = 'No tenés permisos para consultar histórico Edenic en este tenant.';
+      } else if (msg.includes('400')) {
+        friendlyError = 'Seleccioná el tenant Edenic autorizado para consultar histórico.';
+      } else if (msg.includes('429')) {
+        friendlyError = 'Edenic limitó la frecuencia de consultas. Probá nuevamente en un minuto.';
+      } else {
+        friendlyError = 'No se pudo cargar el histórico Edenic.';
+      }
+      setEdenicHistoryErrors((prev) => ({ ...prev, [deviceId]: friendlyError }));
+    } finally {
+      setLoadingEdenicHistory((prev) => ({ ...prev, [deviceId]: false }));
+    }
+  };
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (activeTab !== 'edenic') return;
@@ -209,12 +318,17 @@ export default function Sensors() {
     fetchEdenicData();
   }, [activeTab, selectedTenant]);
 
-  // Limpiar cache de telemetría Edenic al cambiar de tenant
+  // Limpiar cache de telemetría y histórico Edenic al cambiar de tenant
   useEffect(() => {
     setEdenicTelemetryByDevice({});
     setLoadingEdenicTelemetry({});
     setEdenicTelemetryErrors({});
     setEdenicTelemetryFetchedAt({});
+    setEdenicHistoryByDevice({});
+    setLoadingEdenicHistory({});
+    setEdenicHistoryErrors({});
+    setEdenicHistoryFetchedAt({});
+    setExpandedEdenicHistoryDevice(null);
   }, [selectedTenant?.id]);
 
   const convertFtoC = (fahrenheit: number) => {
@@ -621,6 +735,16 @@ export default function Sensors() {
                 const tempPoint = getLatestTelemetryValue(deviceTelemetry, 'temperature');
                 const ecPoint = getLatestTelemetryValue(deviceTelemetry, 'electrical_conductivity');
 
+                const deviceHistory = edenicHistoryByDevice[device.id];
+                const isHistoryLoading = loadingEdenicHistory[device.id] ?? false;
+                const historyError = edenicHistoryErrors[device.id];
+                const historyFetchedAt = edenicHistoryFetchedAt[device.id];
+                const historyRemainingCooldown = historyFetchedAt
+                  ? Math.max(0, Math.ceil((EDENIC_HISTORY_COOLDOWN_MS - (Date.now() - historyFetchedAt)) / 1000))
+                  : 0;
+                const isHistoryInCooldown = historyRemainingCooldown > 0;
+                const isHistoryExpanded = expandedEdenicHistoryDevice === device.id;
+
                 return (
                   <Card key={device.id}>
                     <div className="mb-3">
@@ -725,6 +849,147 @@ export default function Sensors() {
                         </div>
                       )}
                     </div>
+                    {/* Histórico */}
+                    {device.gateway !== true && (
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 mt-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Histórico (2h)
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() =>
+                                setExpandedEdenicHistoryDevice(
+                                  isHistoryExpanded ? null : device.id
+                                )
+                              }
+                              className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              {isHistoryExpanded ? 'Ocultar histórico' : 'Ver histórico'}
+                            </button>
+                            {isHistoryExpanded && (
+                              <button
+                                onClick={() => fetchEdenicHistory(device.id)}
+                                disabled={isHistoryLoading || isHistoryInCooldown}
+                                className="text-xs px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isHistoryLoading
+                                  ? 'Cargando histórico...'
+                                  : isHistoryInCooldown
+                                  ? `Disponible en ${historyRemainingCooldown}s`
+                                  : deviceHistory
+                                  ? 'Actualizar histórico'
+                                  : 'Cargar histórico'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {isHistoryExpanded && (
+                          <div className="mt-2">
+                            {historyError && (
+                              <p className="text-xs text-red-600 dark:text-red-400 mb-2">{historyError}</p>
+                            )}
+                            {isHistoryLoading && !deviceHistory && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Cargando histórico...</p>
+                            )}
+                            {!isHistoryLoading && !historyError && !deviceHistory && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Hacé click en "Cargar histórico" para ver datos del historial.
+                              </p>
+                            )}
+                            {deviceHistory && (() => {
+                              const phH = (deviceHistory.telemetry.ph ?? []).filter(
+                                (p) => p.value !== null && p.value !== undefined && p.value !== '' && !isNaN(Number(p.value))
+                              );
+                              const tmpH = (deviceHistory.telemetry.temperature ?? []).filter(
+                                (p) => p.value !== null && p.value !== undefined && p.value !== '' && !isNaN(Number(p.value))
+                              );
+                              const ecH = (deviceHistory.telemetry.electrical_conductivity ?? []).filter(
+                                (p) => p.value !== null && p.value !== undefined && p.value !== '' && !isNaN(Number(p.value))
+                              );
+                              const hasAny = phH.length > 0 || tmpH.length > 0 || ecH.length > 0;
+                              if (!hasAny) {
+                                return (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    No hay datos históricos disponibles para este rango.
+                                  </p>
+                                );
+                              }
+                              return (
+                                <div className="space-y-3">
+                                  {phH.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-blue-600 dark:text-blue-400">pH</span>
+                                        <MiniSparkline points={phH} color="#2563eb" precision={getDisplayPrecision('ph')} />
+                                      </div>
+                                      <table className="w-full text-xs">
+                                        <tbody>
+                                          {phH.slice(-8).map((p, i) => (
+                                            <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
+                                              <td className="py-0.5 text-gray-400 dark:text-gray-500 pr-2">
+                                                {new Date(p.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                              </td>
+                                              <td className="py-0.5 font-mono text-gray-900 dark:text-white text-right">
+                                                {Number(p.value).toFixed(2)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                  {tmpH.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-red-500 dark:text-red-400">Temperatura (°C)</span>
+                                        <MiniSparkline points={tmpH} color="#ef4444" precision={getDisplayPrecision('temperature')} />
+                                      </div>
+                                      <table className="w-full text-xs">
+                                        <tbody>
+                                          {tmpH.slice(-8).map((p, i) => (
+                                            <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
+                                              <td className="py-0.5 text-gray-400 dark:text-gray-500 pr-2">
+                                                {new Date(p.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                              </td>
+                                              <td className="py-0.5 font-mono text-gray-900 dark:text-white text-right">
+                                                {Number(p.value).toFixed(1)}&nbsp;°C
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                  {ecH.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">EC</span>
+                                        <MiniSparkline points={ecH} color="#059669" precision={getDisplayPrecision('electrical_conductivity')} />
+                                      </div>
+                                      <table className="w-full text-xs">
+                                        <tbody>
+                                          {ecH.slice(-8).map((p, i) => (
+                                            <tr key={i} className="border-t border-gray-100 dark:border-gray-800">
+                                              <td className="py-0.5 text-gray-400 dark:text-gray-500 pr-2">
+                                                {new Date(p.ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                              </td>
+                                              <td className="py-0.5 font-mono text-gray-900 dark:text-white text-right">
+                                                {Number(p.value).toFixed(2)}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 );
               })}
