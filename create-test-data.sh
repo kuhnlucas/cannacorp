@@ -1,6 +1,11 @@
 #!/bin/bash
 
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ino1eHcyY3VreiIsImlhdCI6MTc2OTU3NTIxNSwiZXhwIjoxNzcwMTgwMDE1fQ.2SI8RZqWcTQzsIBRrdFTrPfhZ61Mi5pxdseBXnmf_R4"
+# Read token from environment variable for safety. Do NOT hardcode tokens in scripts.
+TOKEN="${AUTH_TOKEN:-}" 
+if [ -z "$TOKEN" ]; then
+  echo "ERROR: AUTH_TOKEN not set. Export AUTH_TOKEN in your shell before running this script."
+  exit 1
+fi
 
 # Crear un laboratorio
 echo "Creating lab..."
