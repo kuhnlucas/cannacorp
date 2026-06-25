@@ -12,8 +12,10 @@
  *   GET /devices/:deviceId/telemetry/history
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware';
+import config from '../config';
 import {
   validateConfiguration,
   getDevices,
@@ -25,10 +27,68 @@ import {
   EdenicOrderBy,
 } from '../services/edenicClient';
 
+const prisma = new PrismaClient();
 const router = Router();
 
-// All Edenic routes require authentication
+/**
+ * requireEdenicTenantAdmin
+ *
+ * Single middleware that enforces all Edenic access rules without relying on
+ * requireTenant (which has a first-tenant fallback not appropriate for a
+ * global integration). Rules applied in order:
+ *
+ *  1. EDENIC_TENANT_ID must be configured          → 503
+ *  2. X-Tenant-Id header must be present           → 400
+ *  3. X-Tenant-Id must equal config.edenicTenantId → 403
+ *  4. Authenticated user must have OWNER or ADMIN
+ *     membership in that exact tenant              → 403
+ */
+const requireEdenicTenantAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  // 1. Config guard
+  const edenicTenantId = config.edenicTenantId;
+  if (!edenicTenantId) {
+    return res.status(503).json({ error: 'Edenic tenant authorization is not configured' });
+  }
+
+  // 2. Header presence — read from req.headers (Express lowercases all header names)
+  const headerValue = req.headers['x-tenant-id'] as string | undefined;
+  if (!headerValue) {
+    return res.status(400).json({ error: 'X-Tenant-Id header is required for Edenic routes' });
+  }
+
+  // 3. Header value must match the configured Edenic tenant exactly
+  if (headerValue !== edenicTenantId) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  // 4. User must have OWNER or ADMIN membership in the Edenic tenant
+  const userId = (req as any).userId as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_tenantId: {
+          userId,
+          tenantId: edenicTenantId,
+        },
+      },
+    });
+
+    if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    return next();
+  } catch (err) {
+    return res.status(500).json({ error: 'Authorization check failed' });
+  }
+};
+
 router.use(authenticateToken);
+router.use(requireEdenicTenantAdmin);
 
 /**
  * GET /api/integrations/edenic/config

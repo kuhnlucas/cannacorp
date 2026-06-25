@@ -53,6 +53,7 @@ services:
       - EDENIC_BASE_URL=${EDENIC_BASE_URL:-}
       - EDENIC_API_KEY=${EDENIC_API_KEY:-}
       - EDENIC_ORGANIZATION_ID=${EDENIC_ORGANIZATION_ID:-}
+      - EDENIC_TENANT_ID=${EDENIC_TENANT_ID:-}
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
       interval: 10s

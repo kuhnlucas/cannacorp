@@ -21,6 +21,7 @@ const PULSE_GROW_API_KEY = process.env.PULSE_GROW_API_KEY;
 const EDENIC_BASE_URL = process.env.EDENIC_BASE_URL;
 const EDENIC_API_KEY = process.env.EDENIC_API_KEY;
 const EDENIC_ORGANIZATION_ID = process.env.EDENIC_ORGANIZATION_ID;
+const EDENIC_TENANT_ID = process.env.EDENIC_TENANT_ID;
 // EDENIC_API_SECRET: legacy/deprecated — not used by edenicClient (API uses Authorization header only)
 const EDENIC_API_SECRET = process.env.EDENIC_API_SECRET;
 
@@ -54,6 +55,7 @@ export const config = {
   edenicBaseUrl: EDENIC_BASE_URL,
   edenicApiKey: EDENIC_API_KEY,
   edenicOrganizationId: EDENIC_ORGANIZATION_ID,
+  edenicTenantId: EDENIC_TENANT_ID,
   edenicApiSecret: EDENIC_API_SECRET, // legacy — not used by edenicClient
 
   // Helpers
