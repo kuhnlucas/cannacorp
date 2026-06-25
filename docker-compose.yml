@@ -44,6 +44,7 @@ services:
       - PORT=3000
       - DATABASE_URL=file:./dev.db
       - JWT_SECRET=${JWT_SECRET:?Definir JWT_SECRET en .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - TUYA_CLIENT_ID=${TUYA_CLIENT_ID:-}
       - TUYA_CLIENT_SECRET=${TUYA_CLIENT_SECRET:-}
       - TUYA_REGION=${TUYA_REGION:-us}

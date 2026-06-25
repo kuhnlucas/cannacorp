@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
+// Using a lightweight custom CORS middleware to avoid library behavior
+// that turns disallowed origins into internal errors.
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { errorHandler, authenticateToken } from './middleware';
@@ -36,21 +37,67 @@ const authLimiter = rateLimit({
   message: 'Too many login attempts, try again later.',
 });
 
+// Rate limit específico para registro
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 10, // 10 registros por IP por hora
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many registration attempts, try again later.',
+});
+
 app.use(express.json());
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:3000'
-  ],
-  credentials: true,
-}));
+
+// CORS configuration driven by config.allowedOrigins and NODE_ENV
+const localDevOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177',
+  'http://localhost:3000',
+];
+
+// Simple CORS middleware: sets CORS headers only when origin is allowed.
+const allowed = config.allowedOrigins || [];
+const isProduction = config.nodeEnv === 'production';
+const originList = isProduction ? allowed : Array.from(new Set([...localDevOrigins, ...allowed]));
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  // Allow requests with no origin (curl, healthchecks, server-to-server)
+  if (!origin) return next();
+
+  const allowedHere = originList;
+  if (!allowedHere || allowedHere.length === 0) {
+    // In production an empty list means deny all origins — do nothing
+    return next();
+  }
+
+  if (allowedHere.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+
+    if (req.method === 'OPTIONS') {
+      // Handle preflight: allow common methods and headers
+      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+      const reqHeaders = req.headers['access-control-request-headers'];
+      if (reqHeaders) {
+        res.setHeader('Access-Control-Allow-Headers', String(reqHeaders));
+        res.setHeader('Vary', 'Access-Control-Request-Headers');
+      }
+      res.statusCode = 204;
+      return res.end();
+    }
+  }
+
+  return next();
+});
 
 // Aplicar rate limit solo a login
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
 
 // Health check
 app.get('/health', (req, res) => {

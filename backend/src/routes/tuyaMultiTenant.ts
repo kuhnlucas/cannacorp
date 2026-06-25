@@ -3,7 +3,7 @@
  * Endpoints para vincular y gestionar dispositivos Smart Life por tenant
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth';
 import { requireTenant } from '../middleware/requireTenant';
@@ -12,6 +12,47 @@ import config from '../config';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+/**
+ * requireTuyaTenantAdmin
+ *
+ * Ensure the authenticated user has OWNER or ADMIN membership in the
+ * tenant resolved by requireTenant. Responds with appropriate HTTP codes:
+ *  - 401 if unauthenticated
+ *  - 400 if tenant not resolved
+ *  - 403 if membership missing or insufficient
+ */
+const requireTuyaTenantAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  const tenant = (req as any).tenant;
+  if (!tenant) {
+    return res.status(400).json({ error: 'Tenant not resolved' });
+  }
+
+  const userId = (req as any).userId as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_tenantId: {
+          userId,
+          tenantId: tenant.id,
+        },
+      },
+    });
+
+    if (!membership || (membership.role !== 'OWNER' && membership.role !== 'ADMIN')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    return next();
+  } catch (err) {
+    console.error('Error checking Tuya tenant membership:', err);
+    return res.status(500).json({ error: 'Authorization check failed' });
+  }
+};
 
 /**
  * Helper para normalizar status de sensores
@@ -40,7 +81,7 @@ function normalizeSensorStatus(statusList: Array<{ code: string; value: any }>) 
  * POST /api/tuya/app-accounts/validate
  * Valida UID y sincroniza dispositivos del tenant
  */
-router.post('/app-accounts/validate', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.post('/app-accounts/validate', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const { uid, region: bodyRegion, baseUrl: bodyBaseUrl } = req.body;
 
@@ -172,7 +213,7 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, async (req: Re
  * GET /api/tuya/devices
  * Lista dispositivos Tuya del tenant
  */
-router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.get('/devices', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const tenantId = req.tenant!.id;
 
@@ -292,7 +333,7 @@ router.get('/devices', requireAuth, requireTenant, async (req: Request, res: Res
  * GET /api/tuya/devices/:tuyaDeviceId/status
  * Obtiene estado en tiempo real de un dispositivo
  */
-router.get('/devices/:tuyaDeviceId/status', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.get('/devices/:tuyaDeviceId/status', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const { tuyaDeviceId } = req.params;
 
@@ -345,7 +386,7 @@ router.get('/devices/:tuyaDeviceId/status', requireAuth, requireTenant, async (r
  * POST /api/tuya/sync
  * Re-sincroniza dispositivos del tenant
  */
-router.post('/sync', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.post('/sync', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const tenantId = req.tenant!.id;
 
@@ -430,7 +471,7 @@ router.post('/sync', requireAuth, requireTenant, async (req: Request, res: Respo
  * PATCH /api/tuya/devices/:deviceId/lab
  * Asignar dispositivo Tuya a un laboratorio
  */
-router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const { deviceId } = req.params;
     const { labId } = req.body;
@@ -513,7 +554,7 @@ router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, async (req: R
  * GET /api/tuya/app-accounts
  * Lista cuentas Tuya vinculadas al tenant
  */
-router.get('/app-accounts', requireAuth, requireTenant, async (req: Request, res: Response) => {
+router.get('/app-accounts', requireAuth, requireTenant, requireTuyaTenantAdmin, async (req: Request, res: Response) => {
   try {
     const accounts = await prisma.tuyaAppAccount.findMany({
       where: { tenantId: req.tenant!.id },

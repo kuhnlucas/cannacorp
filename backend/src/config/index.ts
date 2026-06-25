@@ -26,6 +26,9 @@ const EDENIC_TENANT_ID = process.env.EDENIC_TENANT_ID;
 // EDENIC_API_SECRET: legacy/deprecated — not used by edenicClient (API uses Authorization header only)
 const EDENIC_API_SECRET = process.env.EDENIC_API_SECRET;
 
+// ALLOWED_ORIGINS: comma-separated list for CORS in production
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS;
+
 // Fail-fast for truly required secrets
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is required. Set JWT_SECRET in your environment.');
@@ -59,6 +62,10 @@ export const config = {
   edenicOrganizationId: EDENIC_ORGANIZATION_ID,
   edenicTenantId: EDENIC_TENANT_ID,
   edenicApiSecret: EDENIC_API_SECRET, // legacy — not used by edenicClient
+  // CORS
+  allowedOrigins: ALLOWED_ORIGINS
+    ? ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+    : [],
 
   // Helpers
   isTuyaConfigured(): boolean {
