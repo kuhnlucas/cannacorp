@@ -17,6 +17,7 @@ const TUYA_BASE_URL = process.env.TUYA_BASE_URL;
 
 const PULSE_GROW_API_URL = process.env.PULSE_GROW_API_URL || 'https://api.pulsegrow.com';
 const PULSE_GROW_API_KEY = process.env.PULSE_GROW_API_KEY;
+const PULSE_GROW_TENANT_ID = process.env.PULSE_GROW_TENANT_ID;
 
 const EDENIC_BASE_URL = process.env.EDENIC_BASE_URL;
 const EDENIC_API_KEY = process.env.EDENIC_API_KEY;
@@ -50,6 +51,7 @@ export const config = {
   // Pulse Grow
   pulseGrowApiUrl: PULSE_GROW_API_URL,
   pulseGrowApiKey: PULSE_GROW_API_KEY,
+  pulseGrowTenantId: PULSE_GROW_TENANT_ID,
 
   // Edenic
   edenicBaseUrl: EDENIC_BASE_URL,

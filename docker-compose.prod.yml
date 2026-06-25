@@ -50,6 +50,7 @@ services:
       - TUYA_BASE_URL=${TUYA_BASE_URL:-}
       - PULSE_GROW_API_URL=${PULSE_GROW_API_URL:-}
       - PULSE_GROW_API_KEY=${PULSE_GROW_API_KEY:-}
+      - PULSE_GROW_TENANT_ID=${PULSE_GROW_TENANT_ID:-}
     depends_on:
       db:
         condition: service_healthy
