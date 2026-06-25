@@ -4,7 +4,7 @@ import Card from '../components/Card';
 import Badge from '../components/Badge';
 import TuyaLinkWizard from '../components/TuyaLinkWizard';
 import { useTenant } from '../contexts/TenantContext';
-import api, { EdenicDevice } from '../services/api';
+import api, { EdenicDevice, EdenicTelemetryResponse, EdenicTelemetryKey } from '../services/api';
 
 interface PulseGrowDevice {
   id: string;
@@ -32,6 +32,31 @@ interface TuyaDevice {
   icon?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Edenic telemetry helpers (module-level, no state dependency)
+// ---------------------------------------------------------------------------
+const EDENIC_TELEMETRY_COOLDOWN_MS = 60_000;
+const EDENIC_TELEMETRY_KEYS: EdenicTelemetryKey[] = [
+  'ph',
+  'temperature',
+  'electrical_conductivity',
+];
+
+const getLatestTelemetryValue = (
+  telemetry: EdenicTelemetryResponse | undefined,
+  key: string
+) => {
+  const points = telemetry?.telemetry?.[key as EdenicTelemetryKey];
+  // No points or empty array -> no data
+  if (!points || points.length === 0) return null;
+  const point = points[0];
+  // Treat explicit null/undefined/empty-string as missing data
+  if (point == null) return null;
+  const v = (point as any).value;
+  if (v === null || v === undefined || v === '') return null;
+  return point;
+};
+
 export default function Sensors() {
   const { selectedTenant } = useTenant();
   const [pulseGrowDevices, setPulseGrowDevices] = useState<PulseGrowDevice[]>([]);
@@ -44,6 +69,10 @@ export default function Sensors() {
   const [loadingEdenic, setLoadingEdenic] = useState(false);
   const [edicError, setEdicError] = useState<string | null>(null);
   const [edicFetchedForTenant, setEdicFetchedForTenant] = useState<string | null>(null);
+  const [edenicTelemetryByDevice, setEdenicTelemetryByDevice] = useState<Record<string, EdenicTelemetryResponse>>({});
+  const [loadingEdenicTelemetry, setLoadingEdenicTelemetry] = useState<Record<string, boolean>>({});
+  const [edenicTelemetryErrors, setEdenicTelemetryErrors] = useState<Record<string, string>>({});
+  const [edenicTelemetryFetchedAt, setEdenicTelemetryFetchedAt] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchPulseGrowData();
@@ -136,6 +165,40 @@ export default function Sensors() {
     }
   };
 
+  const fetchEdenicTelemetry = async (deviceId: string) => {
+    if (!deviceId) return;
+    if (loadingEdenicTelemetry[deviceId]) return;
+    const now = Date.now();
+    const lastFetch = edenicTelemetryFetchedAt[deviceId];
+    if (lastFetch && now - lastFetch < EDENIC_TELEMETRY_COOLDOWN_MS) return;
+    setLoadingEdenicTelemetry(prev => ({ ...prev, [deviceId]: true }));
+    setEdenicTelemetryErrors(prev => {
+      const next = { ...prev };
+      delete next[deviceId];
+      return next;
+    });
+    try {
+      const data = await api.edenic.getLatestTelemetry(deviceId, EDENIC_TELEMETRY_KEYS);
+      setEdenicTelemetryByDevice(prev => ({ ...prev, [deviceId]: data }));
+      setEdenicTelemetryFetchedAt(prev => ({ ...prev, [deviceId]: Date.now() }));
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : '';
+      let friendlyError: string;
+      if (msg.includes('403')) {
+        friendlyError = 'No tenés permisos para consultar mediciones Edenic en este tenant.';
+      } else if (msg.includes('429')) {
+        friendlyError = 'Edenic limitó la frecuencia de consultas. Probá nuevamente en un minuto.';
+      } else if (msg.includes('400')) {
+        friendlyError = 'Seleccioná el tenant Edenic autorizado para consultar mediciones.';
+      } else {
+        friendlyError = 'No se pudieron cargar las mediciones Edenic.';
+      }
+      setEdenicTelemetryErrors(prev => ({ ...prev, [deviceId]: friendlyError }));
+    } finally {
+      setLoadingEdenicTelemetry(prev => ({ ...prev, [deviceId]: false }));
+    }
+  };
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (activeTab !== 'edenic') return;
@@ -145,6 +208,14 @@ export default function Sensors() {
     if (edicFetchedForTenant === selectedTenant.id) return;
     fetchEdenicData();
   }, [activeTab, selectedTenant]);
+
+  // Limpiar cache de telemetría Edenic al cambiar de tenant
+  useEffect(() => {
+    setEdenicTelemetryByDevice({});
+    setLoadingEdenicTelemetry({});
+    setEdenicTelemetryErrors({});
+    setEdenicTelemetryFetchedAt({});
+  }, [selectedTenant?.id]);
 
   const convertFtoC = (fahrenheit: number) => {
     return ((fahrenheit - 32) * 5) / 9;
@@ -530,9 +601,25 @@ export default function Sensors() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {edicDevices.map((device) => {
-                const displayName = device.label || device.name || device.id;
+                const displayName = device.label
+                  ? device.label
+                  : device.gateway === true
+                  ? 'Gateway Edenic'
+                  : device.name || device.id;
                 const shortId = device.id.length > 8 ? `${device.id.slice(0, 8)}...` : device.id;
                 const subType = device.additionalInfo?.deviceSubType as string | undefined;
+
+                const deviceTelemetry = edenicTelemetryByDevice[device.id];
+                const isTelemetryLoading = loadingEdenicTelemetry[device.id] ?? false;
+                const telemetryError = edenicTelemetryErrors[device.id];
+                const fetchedAt = edenicTelemetryFetchedAt[device.id];
+                const cooldownRemaining = fetchedAt
+                  ? Math.max(0, Math.ceil((EDENIC_TELEMETRY_COOLDOWN_MS - (Date.now() - fetchedAt)) / 1000))
+                  : 0;
+                const isInCooldown = cooldownRemaining > 0;
+                const phPoint = getLatestTelemetryValue(deviceTelemetry, 'ph');
+                const tempPoint = getLatestTelemetryValue(deviceTelemetry, 'temperature');
+                const ecPoint = getLatestTelemetryValue(deviceTelemetry, 'electrical_conductivity');
 
                 return (
                   <Card key={device.id}>
@@ -557,10 +644,86 @@ export default function Sensors() {
                         <p className="text-xs text-gray-500 dark:text-gray-400">{subType}</p>
                       )}
                     </div>
-                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700 mb-3">
                       <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
                         ID: {shortId}
                       </span>
+                    </div>
+                    {/* Últimas mediciones */}
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                          Últimas mediciones
+                        </span>
+                        {device.gateway === true ? (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Gateway: no expone mediciones directas
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => fetchEdenicTelemetry(device.id)}
+                            disabled={isTelemetryLoading || isInCooldown}
+                            className="text-xs px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isTelemetryLoading
+                              ? 'Cargando...'
+                              : isInCooldown
+                              ? `Disponible en ${cooldownRemaining}s`
+                              : deviceTelemetry
+                              ? 'Actualizar mediciones'
+                              : 'Cargar mediciones'}
+                          </button>
+                        )}
+                      </div>
+                      {telemetryError && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mb-2">{telemetryError}</p>
+                      )}
+                      {isTelemetryLoading && !deviceTelemetry && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Cargando mediciones...</p>
+                      )}
+                      {deviceTelemetry && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500 dark:text-gray-400">pH</span>
+                            <div className="text-right">
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {phPoint !== null ? String(phPoint.value) : 'Sin dato'}
+                              </span>
+                              {phPoint !== null && (
+                                <div className="text-gray-400 dark:text-gray-500">
+                                  {new Date(phPoint.ts).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500 dark:text-gray-400">Temperatura</span>
+                            <div className="text-right">
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {tempPoint !== null ? `${tempPoint.value} °C` : 'Sin dato'}
+                              </span>
+                              {tempPoint !== null && (
+                                <div className="text-gray-400 dark:text-gray-500">
+                                  {new Date(tempPoint.ts).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500 dark:text-gray-400">EC</span>
+                            <div className="text-right">
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {ecPoint !== null ? String(ecPoint.value) : 'Sin dato'}
+                              </span>
+                              {ecPoint !== null && (
+                                <div className="text-gray-400 dark:text-gray-500">
+                                  {new Date(ecPoint.ts).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </Card>
                 );
