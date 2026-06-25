@@ -24,6 +24,42 @@ const getTenantId = (): string | null => {
   return localStorage.getItem('selectedTenantId');
 };
 
+// ---------------------------------------------------------------------------
+// Edenic integration types
+// ---------------------------------------------------------------------------
+
+export type EdenicTelemetryKey = 'ph' | 'electrical_conductivity' | 'temperature';
+
+export type EdenicTelemetryAgg = 'AVG' | 'COUNT' | 'MAX' | 'MIN' | 'NONE' | 'SUM';
+
+export type EdenicOrderBy = 'ASC' | 'DESC';
+
+export interface EdenicDevice {
+  id: string;
+  name?: string;
+  label?: string;
+  gateway?: boolean;
+  deleted?: boolean;
+  additionalInfo?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface EdenicTelemetryPoint {
+  ts: number;
+  value: string | number;
+}
+
+export interface EdenicTelemetryResponse {
+  telemetry: Partial<Record<EdenicTelemetryKey, EdenicTelemetryPoint[]>>;
+}
+
+export interface EdenicConfigResponse {
+  valid: boolean;
+  missing?: string[];
+  message?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Helper function to make authenticated requests
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const token = getToken();
@@ -250,6 +286,50 @@ export const api = {
   sensors: {
     getAll: () => fetchWithAuth(`${API_URL}/sensors`),
     getByLab: (labId: string) => fetchWithAuth(`${API_URL}/sensors?labId=${labId}`),
+  },
+
+  // ===== Edenic Integration =====
+  edenic: {
+    getConfig: (): Promise<EdenicConfigResponse> =>
+      fetchWithAuth(`${API_URL}/integrations/edenic/config`),
+
+    getDevices: (): Promise<{ devices: EdenicDevice[] }> =>
+      fetchWithAuth(`${API_URL}/integrations/edenic/devices`),
+
+    getLatestTelemetry: (
+      deviceId: string,
+      keys?: EdenicTelemetryKey[]
+    ): Promise<EdenicTelemetryResponse> => {
+      const query = keys && keys.length > 0
+        ? `?keys=${keys.join(',')}`
+        : '';
+      return fetchWithAuth(
+        `${API_URL}/integrations/edenic/devices/${encodeURIComponent(deviceId)}/telemetry/latest${query}`
+      );
+    },
+
+    getTelemetryHistory: (
+      deviceId: string,
+      params: {
+        keys: EdenicTelemetryKey[];
+        startTs: number;
+        endTs: number;
+        interval?: number;
+        agg?: EdenicTelemetryAgg;
+        orderBy?: EdenicOrderBy;
+      }
+    ): Promise<EdenicTelemetryResponse> => {
+      const searchParams = new URLSearchParams();
+      searchParams.set('keys', params.keys.join(','));
+      searchParams.set('startTs', String(params.startTs));
+      searchParams.set('endTs', String(params.endTs));
+      if (params.interval !== undefined) searchParams.set('interval', String(params.interval));
+      if (params.agg) searchParams.set('agg', params.agg);
+      if (params.orderBy) searchParams.set('orderBy', params.orderBy);
+      return fetchWithAuth(
+        `${API_URL}/integrations/edenic/devices/${encodeURIComponent(deviceId)}/telemetry/history?${searchParams.toString()}`
+      );
+    },
   },
 };
 
