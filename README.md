@@ -28,3 +28,21 @@ npm run seed
 ```
 
 > El seed es idempotente: se puede ejecutar múltiples veces sin crear duplicados.
+
+### Desarrollo local (sin Docker)
+
+```bash
+# 1. Instalar dependencias frontend
+npm install
+
+# 2. Instalar dependencias backend
+cd backend
+npm install
+
+# 3. Iniciar API (puerto 3000)
+npm run dev
+
+# 4. En otra terminal, iniciar frontend (puerto 5173)
+cd ..
+npm run dev
+```
