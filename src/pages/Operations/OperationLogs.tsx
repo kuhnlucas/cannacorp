@@ -8,7 +8,7 @@ import { Search, Filter, ChevronDown } from 'lucide-react';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import { eventTypeLabels, eventTypeColors, EventType } from '../../mocks/ops';
+import { eventTypeLabels, eventTypeColors, EventType } from '../../constants/operations';
 import { useLanguage } from '../../contexts/LanguageContext';
 import api from '../../services/api';
 

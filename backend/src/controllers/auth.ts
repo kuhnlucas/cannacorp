@@ -51,8 +51,6 @@ export const register = async (req: Request, res: Response) => {
       return { user, tenant };
     });
 
-    console.log(`✅ Usuario registrado: ${result.user.email} con tenant: ${result.tenant.id}`);
-
     // Generate token
     const token = jwt.sign(
       { id: result.user.id, email: result.user.email },
@@ -109,8 +107,6 @@ export const login = async (req: Request, res: Response) => {
 
     // Generate token
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-
-    console.log(`✅ Login: ${user.email}, Tenant: ${primaryMembership?.tenant.name}`);
 
     res.json({
       user: {

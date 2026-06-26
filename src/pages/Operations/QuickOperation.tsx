@@ -9,7 +9,7 @@ import Card from '../../components/Card';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useData } from '../../contexts/DataContext';
-import { quickEventTypes, EventType } from '../../mocks/ops';
+import { quickEventTypes, EventType } from '../../constants/operations';
 import api from '../../services/api';
 
 export default function QuickOperationsPage() {

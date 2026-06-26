@@ -72,11 +72,13 @@ export class TuyaClient {
     this.config = config;
     this.baseUrl = config.baseUrl || TuyaClient.REGION_URLS[config.region] || TuyaClient.REGION_URLS.us;
     
-    console.log('🔧 Tuya Client initialized:', {
-      region: config.region,
-      baseUrl: this.baseUrl,
-      configuredUrl: config.baseUrl,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔧 Tuya Client initialized:', {
+        region: config.region,
+        baseUrl: this.baseUrl,
+        configuredUrl: config.baseUrl,
+      });
+    }
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -281,7 +283,6 @@ export class TuyaClient {
    */
   async listDevicesByUid(uid: string): Promise<TuyaDevice[]> {
     try {
-      console.log(`🔍 Fetching devices for UID: ${uid} from ${this.baseUrl}`);
       const response = await this.client.get(`/v1.0/users/${uid}/devices`);
       
       if (response.data.success && response.data.result) {

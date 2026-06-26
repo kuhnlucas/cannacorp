@@ -177,12 +177,6 @@ export default function Sensors() {
     setLoadingTuya(true);
     try {
       const data = await api.tuya.getDevices();
-      console.log('📊 Tuya devices received:', data.devices);
-      if (data.devices && data.devices.length > 0) {
-        console.log('📊 First device:', data.devices[0]);
-        console.log('📊 Device status:', data.devices[0].status);
-        console.log('📊 Device online:', data.devices[0].online);
-      }
       setTuyaDevices(data.devices || []);
     } catch (error) {
       console.error('Error fetching Tuya data:', error);
@@ -198,7 +192,6 @@ export default function Sensors() {
     setLoadingTuya(true);
     try {
       const data = await api.tuya.syncDevices();
-      console.log('✅ Sync response:', data);
       // Reload devices after sync
       await fetchTuyaData();
     } catch (error) {

@@ -9,7 +9,7 @@ import Card from '../../components/Card';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useData } from '../../contexts/DataContext';
-import { eventTypeLabels, EventType } from '../../mocks/ops';
+import { eventTypeLabels, EventType } from '../../constants/operations';
 import api from '../../services/api';
 
 interface PlanTask {

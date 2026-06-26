@@ -87,9 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      console.log('🔐 Intentando login con:', { email });
       const response = await api.auth.login(email, password);
-      console.log('📡 Respuesta del login:', { hasUser: !!response.user, hasToken: !!response.token, hasTenant: !!response.tenant });
       
       if (response.user && response.token) {
         const memberRole = response.memberships?.[0]?.role || response.user.role || 'STAFF';
@@ -110,10 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (response.tenant) {
           localStorage.setItem('selectedTenantId', response.tenant.id);
           localStorage.setItem('selectedTenant', JSON.stringify(response.tenant));
-          console.log('✅ Tenant auto-asignado:', response.tenant.name);
         }
-        
-        console.log('✅ Login exitoso.');
         setIsLoading(false);
         return true;
       }

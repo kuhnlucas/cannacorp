@@ -103,9 +103,7 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, requireTuyaTen
     let devices;
 
     try {
-      console.log(`🔄 Attempting to validate UID: ${uid.trim()} for tenant: ${tenantId}`);
       devices = await client.listDevicesByUid(uid.trim());
-      console.log(`✅ Successfully retrieved ${devices?.length || 0} devices`);
     } catch (error: any) {
       console.error('❌ Tuya API Error:', {
         message: error.message,
@@ -158,18 +156,11 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, requireTuyaTen
     });
 
     // Sincronizar dispositivos
-    console.log(`🔄 Sincronizando ${devices.length} dispositivos...`);
     const syncedDevices = [];
     for (const device of devices) {
       const existing = await prisma.tuyaDevice.findUnique({
         where: { tuyaDeviceId: device.id },
       });
-      
-      if (existing) {
-        console.log(`📝 Actualizando dispositivo: ${existing.name} → ${device.name} (${device.online ? 'Online' : 'Offline'})`);
-      } else {
-        console.log(`➕ Nuevo dispositivo: ${device.name} (${device.category})`);
-      }
       
       const syncedDevice = await prisma.tuyaDevice.upsert({
         where: { tuyaDeviceId: device.id },
@@ -193,7 +184,6 @@ router.post('/app-accounts/validate', requireAuth, requireTenant, requireTuyaTen
       });
       syncedDevices.push(syncedDevice);
     }
-    console.log(`✅ Sincronización completada: ${syncedDevices.length} dispositivos`);
 
     res.json({
       ok: true,
@@ -400,7 +390,6 @@ router.post('/sync', requireAuth, requireTenant, requireTuyaTenantAdmin, async (
     }
 
     // Sincronizar dispositivos
-    console.log(`🔄 Sincronización manual solicitada para tenant: ${tenantId}`);
     if (!config.isTuyaConfigured()) {
       return res.status(503).json({ error: 'Tuya integration not configured' });
     }
@@ -410,21 +399,12 @@ router.post('/sync', requireAuth, requireTenant, requireTuyaTenantAdmin, async (
       baseUrl: appAccount.baseUrl || config.tuyaBaseUrl || undefined,
     });
     const devices = await client.listDevicesByUid(appAccount.uid);
-    console.log(`📡 Obtenidos ${devices.length} dispositivos desde Tuya API`);
 
     const syncedDevices = [];
     for (const device of devices) {
       const existing = await prisma.tuyaDevice.findUnique({
         where: { tuyaDeviceId: device.id },
       });
-      
-      if (existing) {
-        const nameChanged = existing.name !== device.name;
-        const statusChanged = existing.isOnline !== device.online;
-        console.log(`📝 Actualizando: ${existing.name}${nameChanged ? ` → ${device.name}` : ''} (${device.online ? '🟢 Online' : '🔴 Offline'}${statusChanged ? ' - estado cambió' : ''})`);
-      } else {
-        console.log(`➕ Nuevo dispositivo: ${device.name} (${device.category})`);
-      }
       
       const syncedDevice = await prisma.tuyaDevice.upsert({
         where: { tuyaDeviceId: device.id },
@@ -448,7 +428,6 @@ router.post('/sync', requireAuth, requireTenant, requireTuyaTenantAdmin, async (
       });
       syncedDevices.push(syncedDevice);
     }
-    console.log(`✅ Sincronización completada: ${syncedDevices.length} dispositivos actualizados`);
 
     res.json({
       ok: true,
@@ -477,8 +456,6 @@ router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, requireTuyaTe
     const { labId } = req.body;
     const tenantId = req.tenant!.id;
 
-    console.log('🔄 Asignación de dispositivo Tuya:', { deviceId, labId, tenantId });
-
     // Verificar que el dispositivo pertenece al tenant
     const device = await prisma.tuyaDevice.findFirst({
       where: {
@@ -488,15 +465,11 @@ router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, requireTuyaTe
     });
 
     if (!device) {
-      console.error('❌ Dispositivo no encontrado:', { deviceId, tenantId });
       return res.status(404).json({ error: 'Device not found' });
     }
 
-    console.log('✅ Dispositivo encontrado:', device.name);
-
     // Si se proporciona labId, verificar que el laboratorio pertenece al tenant
     if (labId) {
-      console.log('🔍 Buscando laboratorio:', { labId, tenantId });
       
       const lab = await prisma.lab.findFirst({
         where: {
@@ -505,23 +478,9 @@ router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, requireTuyaTe
         },
       });
 
-      console.log('📊 Resultado búsqueda lab:', lab);
-
       if (!lab) {
-        // Listar todos los labs del tenant para debug
-        const allLabs = await prisma.lab.findMany({
-          where: { tenantId },
-          select: { id: true, name: true },
-        });
-        console.error('❌ Lab no encontrado. Labs disponibles:', allLabs);
-        return res.status(404).json({ 
-          error: 'Lab not found',
-          availableLabs: allLabs,
-          requestedLabId: labId,
-        });
+        return res.status(404).json({ error: 'Lab not found' });
       }
-
-      console.log('✅ Lab encontrado:', lab.name);
     }
 
     // Actualizar la asignación
@@ -532,8 +491,6 @@ router.patch('/devices/:deviceId/lab', requireAuth, requireTenant, requireTuyaTe
         lab: true,
       },
     });
-
-    console.log(`🔗 Dispositivo ${device.name} ${labId ? `asignado a laboratorio ${updatedDevice.lab?.name}` : 'desasignado de laboratorio'}`);
 
     res.json({
       ok: true,
