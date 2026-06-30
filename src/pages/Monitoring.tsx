@@ -156,17 +156,10 @@ export default function Monitoring() {
             lastReading: s.lastRead ? new Date(s.lastRead).toLocaleString() : 'Sin datos',
           })));
         } else {
-          // Fallback: generate from labs
-          setSensorStatus(labs.flatMap(lab => [
-            { id: `temp-${lab.id}`, name: 'Sensor Temperatura', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-            { id: `humidity-${lab.id}`, name: 'Sensor Humedad', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-          ]));
+          setSensorStatus([]);
         }
       } catch {
-        setSensorStatus(labs.flatMap(lab => [
-          { id: `temp-${lab.id}`, name: 'Sensor Temperatura', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-          { id: `humidity-${lab.id}`, name: 'Sensor Humedad', lab: lab.name, status: 'online', lastReading: 'Ahora' },
-        ]));
+        setSensorStatus([]);
       }
     };
     fetchSensors();

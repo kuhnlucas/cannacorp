@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wifi, Zap, Thermometer, Droplets, Wind, Sun, Leaf } from 'lucide-react';
+import { Wifi, Zap, Thermometer, Droplets, Wind, Sun, Leaf, Database } from 'lucide-react';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import TuyaLinkWizard from '../components/TuyaLinkWizard';
@@ -124,7 +124,9 @@ export default function Sensors() {
   const [tuyaDevices, setTuyaDevices] = useState<TuyaDevice[]>([]);
   const [loadingPulse, setLoadingPulse] = useState(true);
   const [loadingTuya, setLoadingTuya] = useState(true);
-  const [activeTab, setActiveTab] = useState<'pulse' | 'tuya' | 'edenic'>('pulse');
+  const [activeTab, setActiveTab] = useState<'system' | 'pulse' | 'tuya' | 'edenic'>('system');
+  const [systemSensors, setSystemSensors] = useState<any[]>([]);
+  const [loadingSystem, setLoadingSystem] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [edicDevices, setEdicDevices] = useState<EdenicDevice[]>([]);
   const [loadingEdenic, setLoadingEdenic] = useState(false);
@@ -141,6 +143,7 @@ export default function Sensors() {
   const [expandedEdenicHistoryDevice, setExpandedEdenicHistoryDevice] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchSystemSensors();
     fetchPulseGrowData();
     
     // Refresh cada 30 segundos solo para PulseGrow
@@ -150,6 +153,18 @@ export default function Sensors() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const fetchSystemSensors = async () => {
+    setLoadingSystem(true);
+    try {
+      const data = await api.sensors.getAll();
+      setSystemSensors(data.sensors || []);
+    } catch (error) {
+      console.error('Error fetching system sensors:', error);
+    } finally {
+      setLoadingSystem(false);
+    }
+  };
 
   // Cargar datos de Tuya cuando cambie el tenant seleccionado
   useEffect(() => {
@@ -361,6 +376,19 @@ export default function Sensors() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
         <button
+          onClick={() => setActiveTab('system')}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
+            activeTab === 'system'
+              ? 'border-gray-700 text-gray-700 dark:border-gray-300 dark:text-gray-300'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Sistema ({systemSensors.length})
+          </div>
+        </button>
+        <button
           onClick={() => setActiveTab('pulse')}
           className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === 'pulse'
@@ -402,6 +430,87 @@ export default function Sensors() {
           </button>
         )}
       </div>
+
+      {/* System Sensors */}
+      {activeTab === 'system' && (
+        <div>
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={fetchSystemSensors}
+              disabled={loadingSystem}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg className={`h-4 w-4 ${loadingSystem ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {loadingSystem ? 'Cargando...' : 'Actualizar'}
+            </button>
+          </div>
+          {loadingSystem ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-gray-600 border-r-transparent"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Cargando sensores del sistema...</p>
+            </div>
+          ) : systemSensors.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <Database className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">No hay sensores registrados en el sistema</p>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {systemSensors.map((sensor) => {
+                const typeIcons: Record<string, JSX.Element> = {
+                  temperature: <Thermometer className="h-4 w-4 text-red-500" />,
+                  humidity: <Droplets className="h-4 w-4 text-blue-500" />,
+                  ph: <Leaf className="h-4 w-4 text-green-500" />,
+                  ec: <Zap className="h-4 w-4 text-yellow-500" />,
+                  vpd: <Wind className="h-4 w-4 text-purple-500" />,
+                  ppfd: <Sun className="h-4 w-4 text-orange-500" />,
+                };
+                const typeLabels: Record<string, string> = {
+                  temperature: 'Temperatura',
+                  humidity: 'Humedad',
+                  ph: 'pH',
+                  ec: 'EC',
+                  vpd: 'VPD',
+                  ppfd: 'PPFD',
+                };
+                return (
+                  <Card key={sensor.id}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        {typeIcons[sensor.type] ?? <Database className="h-4 w-4 text-gray-400" />}
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{sensor.name}</h3>
+                      </div>
+                      <Badge variant={sensor.status === 'online' ? 'success' : sensor.status === 'offline' ? 'error' : 'default'} size="sm">
+                        {sensor.status === 'online' ? 'Online' : sensor.status === 'offline' ? 'Offline' : sensor.status}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">Tipo</span>
+                        <span className="text-gray-900 dark:text-white">{typeLabels[sensor.type] ?? sensor.type}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">Sala</span>
+                        <span className="text-gray-900 dark:text-white">{sensor.lab?.name ?? '—'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">Última lectura</span>
+                        <span className="text-gray-900 dark:text-white">
+                          {sensor.lastRead ? new Date(sensor.lastRead).toLocaleString('es-ES') : 'Sin datos'}
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pulse Grow Sensors */}
       {activeTab === 'pulse' && (
